@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件上传</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .upload-container {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .upload-container:hover {
+            border-color: #999;
+        }
+        .file-input {
+            margin: 20px 0;
+        }
+        .file-input input {
+            display: none;
+        }
+        .file-input label {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .file-input label:hover {
+            background-color: #45a049;
+        }
+        .file-list {
+            text-align: left;
+            margin: 20px 0;
+        }
+        .file-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .upload-button {
+            padding: 12px 30px;
+            background-color: #008CBA;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .upload-button:hover {
+            background-color: #007B9A;
+        }
+        .upload-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #ebccd1;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>多文件上传</h1>
+    <div class="upload-container">
+        <p>选择多个文件上传到知识库</p>
+        <div class="file-input">
+            <input type="file" id="fileInput" multiple>
+            <label for="fileInput">选择文件</label>
+        </div>
+        <div id="fileList" class="file-list hidden">
+            <h3>已选择的文件:</h3>
+            <ul id="fileListContent"></ul>
+        </div>
+        <button id="uploadButton" class="upload-button" disabled>上传文件</button>
+    </div>
+    <div id="message" class="message hidden"></div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const fileListContent = document.getElementById('fileListContent');
+        const uploadButton = document.getElementById('uploadButton');
+        const messageDiv = document.getElementById('message');
+
+        // 文件选择事件处理
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                // 显示文件列表
+                fileList.classList.remove('hidden');
+                fileListContent.innerHTML = '';
+
+                // 添加文件到列表
+                for (let i = 0; i < this.files.length; i++) {
+                    const li = document.createElement('li');
+                    li.className = 'file-item';
+                    li.textContent = this.files[i].name;
+                    fileListContent.appendChild(li);
+                }
+
+                // 启用上传按钮
+                uploadButton.disabled = false;
+            } else {
+                // 隐藏文件列表
+                fileList.classList.add('hidden');
+                uploadButton.disabled = true;
+            }
+        });
+
+        // 上传按钮事件处理
+        uploadButton.addEventListener('click', function() {
+            if (fileInput.files.length === 0) {
+                showMessage('请先选择文件', 'error');
+                return;
+            }
+
+            // 创建FormData对象
+            const formData = new FormData();
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append('files', fileInput.files[i]);
+            }
+
+            // 禁用按钮并显示上传中状态
+            uploadButton.disabled = true;
+            uploadButton.textContent = '上传中...';
+            showMessage('文件上传中...', 'info');
+
+            // 发送上传请求
+            fetch('http://localhost:9001/api/v1/knowledge/upload-file', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                showMessage(data, 'success');
+            })
+            .catch(error => {
+                showMessage('上传失败: ' + error.message, 'error');
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                uploadButton.disabled = false;
+                uploadButton.textContent = '上传文件';
+            });
+        });
+
+        // 显示消息函数
+        function showMessage(text, type) {
+            messageDiv.textContent = text;
+            messageDiv.className = 'message ' + type;
+            messageDiv.classList.remove('hidden');
+
+            // 3秒后自动隐藏成功消息
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageDiv.classList.add('hidden');
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -12,6 +12,7 @@
     <modules>
         <module>ChatClient-Demo</module>
         <module>Graph-Demo</module>
+        <module>rag-pgvector</module>
     </modules>
 
     <properties>

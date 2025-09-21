@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识库管理系统</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        .upload-container {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+        .upload-container:hover {
+            border-color: #999;
+        }
+        .file-input {
+            margin: 20px 0;
+        }
+        .file-input input {
+            display: none;
+        }
+        .file-input label {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-size: 16px;
+        }
+        .file-input label:hover {
+            background-color: #45a049;
+        }
+        .file-list {
+            text-align: left;
+            margin: 20px 0;
+        }
+        .file-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+        }
+        .upload-button {
+            padding: 12px 30px;
+            background-color: #008CBA;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            margin: 10px;
+        }
+        .upload-button:hover {
+            background-color: #007B9A;
+        }
+        .upload-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .message {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #ebccd1;
+        }
+        .info {
+            background-color: #d9edf7;
+            color: #31708f;
+            border: 1px solid #bce8f1;
+        }
+        .hidden {
+            display: none;
+        }
+        .search-container {
+            display: flex;
+            margin: 20px 0;
+        }
+        .search-container input {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px 0 0 5px;
+        }
+        .search-container button {
+            padding: 12px 20px;
+            background-color: #5bc0de;
+            color: white;
+            border: none;
+            border-radius: 0 5px 5px 0;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .search-container button:hover {
+            background-color: #31b0d5;
+        }
+        .results-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .result-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+            transition: background-color 0.3s;
+        }
+        .tab.active {
+            background-color: #008CBA;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .chat-container {
+            margin-top: 20px;
+        }
+        .chat-messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #fafafa;
+        }
+        .chat-input {
+            display: flex;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px 0 0 5px;
+        }
+        .chat-input button {
+            padding: 12px 20px;
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            border-radius: 0 5px 5px 0;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .chat-input button:hover {
+            background-color: #4cae4c;
+        }
+        .message-user {
+            text-align: right;
+            margin-bottom: 15px;
+        }
+        .message-ai {
+            text-align: left;
+            margin-bottom: 15px;
+        }
+        .message-bubble {
+            display: inline-block;
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 80%;
+        }
+        .user-bubble {
+            background-color: #0084ff;
+            color: white;
+        }
+        .ai-bubble {
+            background-color: #f1f0f0;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>知识库管理系统</h1>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="upload">文件上传</div>
+        <div class="tab" data-tab="search">知识检索</div>
+        <div class="tab" data-tab="chat">智能问答</div>
+    </div>
+
+    <div id="upload" class="tab-content active">
+        <div class="container">
+            <h2>上传文件到知识库</h2>
+            <div class="upload-container">
+                <p>选择多个文件上传到知识库（支持PDF、Word、Txt、Markdown等文本类型）</p>
+                <div class="file-input">
+                    <input type="file" id="fileInput" multiple>
+                    <label for="fileInput">选择文件</label>
+                </div>
+                <div id="fileList" class="file-list hidden">
+                    <h3>已选择的文件:</h3>
+                    <ul id="fileListContent"></ul>
+                </div>
+                <button id="uploadButton" class="upload-button" disabled>上传文件</button>
+            </div>
+            <div id="uploadMessage" class="message hidden"></div>
+        </div>
+    </div>
+
+    <div id="search" class="tab-content">
+        <div class="container">
+            <h2>知识检索</h2>
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="请输入搜索关键词...">
+                <button id="searchButton">搜索</button>
+            </div>
+            <div id="searchMessage" class="message hidden"></div>
+            <div id="searchResults" class="results-container hidden"></div>
+        </div>
+    </div>
+
+    <div id="chat" class="tab-content">
+        <div class="container">
+            <h2>智能问答</h2>
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message-ai">
+                        <div class="message-bubble ai-bubble">
+                            您好！我是智能助手，您可以向我提问任何问题，我会基于知识库内容为您解答。
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-input">
+                    <input type="text" id="chatInput" placeholder="请输入您的问题...">
+                    <button id="chatButton">发送</button>
+                </div>
+            </div>
+            <div id="chatMessage" class="message hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        // Tab切换功能
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // 移除所有活动状态
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                // 添加当前活动状态
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // 文件上传功能
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const fileListContent = document.getElementById('fileListContent');
+        const uploadButton = document.getElementById('uploadButton');
+        const uploadMessage = document.getElementById('uploadMessage');
+
+        // 文件选择事件处理
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                // 显示文件列表
+                fileList.classList.remove('hidden');
+                fileListContent.innerHTML = '';
+
+                // 添加文件到列表
+                for (let i = 0; i < this.files.length; i++) {
+                    const li = document.createElement('li');
+                    li.className = 'file-item';
+                    li.innerHTML = `
+                        <span>${this.files[i].name}</span>
+                        <span>${(this.files[i].size / 1024).toFixed(1)} KB</span>
+                    `;
+                    fileListContent.appendChild(li);
+                }
+
+                // 启用上传按钮
+                uploadButton.disabled = false;
+            } else {
+                // 隐藏文件列表
+                fileList.classList.add('hidden');
+                uploadButton.disabled = true;
+            }
+        });
+
+        // 上传按钮事件处理
+        uploadButton.addEventListener('click', function() {
+            if (fileInput.files.length === 0) {
+                showMessage(uploadMessage, '请先选择文件', 'error');
+                return;
+            }
+
+            // 创建FormData对象
+            const formData = new FormData();
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append('files', fileInput.files[i]);
+            }
+
+            // 禁用按钮并显示上传中状态
+            uploadButton.disabled = true;
+            uploadButton.textContent = '上传中...';
+            showMessage(uploadMessage, '文件上传中...', 'info');
+
+            // 发送上传请求
+            fetch('http://localhost:9001/api/v1/knowledge/upload-file', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                showMessage(uploadMessage, data, 'success');
+                // 清空文件选择
+                fileInput.value = '';
+                fileList.classList.add('hidden');
+                uploadButton.disabled = true;
+            })
+            .catch(error => {
+                showMessage(uploadMessage, '上传失败: ' + error.message, 'error');
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                uploadButton.disabled = false;
+                uploadButton.textContent = '上传文件';
+            });
+        });
+
+        // 知识检索功能
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const searchMessage = document.getElementById('searchMessage');
+        const searchResults = document.getElementById('searchResults');
+
+        searchButton.addEventListener('click', function() {
+            const query = searchInput.value.trim();
+            if (!query) {
+                showMessage(searchMessage, '请输入搜索关键词', 'error');
+                return;
+            }
+
+            // 显示搜索中状态
+            showMessage(searchMessage, '搜索中...', 'info');
+            searchResults.classList.add('hidden');
+
+            // 发送搜索请求
+            fetch(`http://localhost:9001/api/v1/knowledge/search?query=${encodeURIComponent(query)}&topK=5`)
+            .then(response => response.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    displaySearchResults(data);
+                    searchMessage.classList.add('hidden');
+                } else {
+                    showMessage(searchMessage, '搜索结果格式错误', 'error');
+                }
+            })
+            .catch(error => {
+                showMessage(searchMessage, '搜索失败: ' + error.message, 'error');
+            });
+        });
+
+        // 显示搜索结果
+        function displaySearchResults(results) {
+            searchResults.innerHTML = '';
+
+            if (results.length === 0) {
+                searchResults.innerHTML = '<p>未找到相关结果</p>';
+            } else {
+                results.forEach((result, index) => {
+                    const resultItem = document.createElement('div');
+                    resultItem.className = 'result-item';
+                    resultItem.innerHTML = `
+                        <h4>结果 ${index + 1}</h4>
+                        <p><strong>内容:</strong> ${result.content || '无内容'}</p>
+                        <p><strong>相似度:</strong> ${(result.metadata?.similarity * 100).toFixed(2) || '未知'}%</p>
+                    `;
+                    searchResults.appendChild(resultItem);
+                });
+            }
+
+            searchResults.classList.remove('hidden');
+        }
+
+        // 智能问答功能
+        const chatInput = document.getElementById('chatInput');
+        const chatButton = document.getElementById('chatButton');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatMessage = document.getElementById('chatMessage');
+
+        chatButton.addEventListener('click', function() {
+            const query = chatInput.value.trim();
+            if (!query) {
+                showMessage(chatMessage, '请输入问题', 'error');
+                return;
+            }
+
+            // 添加用户消息到聊天记录
+            addMessageToChat(query, 'user');
+            chatInput.value = '';
+
+            // 显示AI正在思考
+            const aiThinking = addMessageToChat('正在思考...', 'ai');
+
+            // 发送聊天请求
+            fetch(`http://localhost:9001/api/v1/knowledge/chat?query=${encodeURIComponent(query)}&topK=5`)
+            .then(response => response.text())
+            .then(data => {
+                // 更新AI消息
+                aiThinking.innerHTML = `<div class="message-bubble ai-bubble">${data}</div>`;
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            })
+            .catch(error => {
+                aiThinking.innerHTML = `<div class="message-bubble ai-bubble">回答失败: ${error.message}</div>`;
+            });
+        });
+
+        // 添加消息到聊天记录
+        function addMessageToChat(content, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message-${sender}`;
+
+            if (sender === 'user') {
+                messageDiv.innerHTML = `<div class="message-bubble user-bubble">${content}</div>`;
+            } else {
+                messageDiv.innerHTML = `<div class="message-bubble ai-bubble">${content}</div>`;
+            }
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            return messageDiv;
+        }
+
+        // 显示消息函数
+        function showMessage(element, text, type) {
+            element.textContent = text;
+            element.className = 'message ' + type;
+            element.classList.remove('hidden');
+
+            // 3秒后自动隐藏成功消息
+            if (type === 'success') {
+                setTimeout(() => {
+                    element.classList.add('hidden');
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>
