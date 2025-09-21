@@ -1,0 +1,10 @@
+server:
+  port: 19000
+spring:
+  ai:
+    alibaba:
+      toolcalling:
+        time:
+          enabled: true
+    dashscope:
+      api-key: ${AI_DASHSCOPE_API_KEY}
