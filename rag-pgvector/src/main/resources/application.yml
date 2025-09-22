@@ -27,7 +27,7 @@ spring:
       base-url: https://dashscope.aliyuncs.com/compatible-mode
       chat:
         options:
-          model: qwen-plus-latest
+          model: qwen-plus-2025-09-11
       embedding:
         options:
           model: text-embedding-v3

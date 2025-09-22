@@ -1,0 +1,9 @@
+server:
+  port: 8990
+spring:
+  ai:
+    dashscope:
+      image:
+        options:
+          model: qwen-image
+      api-key: ${AI_DASHSCOPE_API_KEY}

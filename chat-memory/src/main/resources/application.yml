@@ -1,0 +1,10 @@
+server:
+  port: 9002
+
+spring:
+  ai:
+    dashscope:
+      api-key: ${AI_DASHSCOPE_API_KEY}
+      chat:
+        options:
+          model: ${AI_NAME}

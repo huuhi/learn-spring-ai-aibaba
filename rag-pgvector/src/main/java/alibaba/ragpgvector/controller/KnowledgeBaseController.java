@@ -3,7 +3,12 @@ package alibaba.ragpgvector.controller;
 import alibaba.ragpgvector.service.impl.KnowledgeBaseServiceImpl;
 
 import jakarta.annotation.Resource;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +30,7 @@ import java.util.List;
 public class KnowledgeBaseController {
     @Resource
     private  KnowledgeBaseServiceImpl knowledgeBaseService;
+
 
     /**
      *
@@ -80,7 +86,7 @@ public class KnowledgeBaseController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("相似性搜索过程中发生错误: " + e.getMessage());
         }
     }
-    @GetMapping(value = "/chat",produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = "/chat")
     public ResponseEntity<?> chatWithKnowledge(@RequestParam("query") String query,
                                                      @RequestParam(value = "topK",defaultValue = "5")int topK){
         if(query==null||query.trim().isEmpty()){
@@ -93,7 +99,7 @@ public class KnowledgeBaseController {
             String result = knowledgeBaseService.chatWithKnowledge(query, topK);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Flux.just("流式对话过程中发生错误: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("流式对话过程中发生错误: " + e.getMessage());
 
         }
     }

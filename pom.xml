@@ -13,6 +13,8 @@
         <module>ChatClient-Demo</module>
         <module>Graph-Demo</module>
         <module>rag-pgvector</module>
+        <module>chat-memory</module>
+        <module>image-demo</module>
     </modules>
 
     <properties>
