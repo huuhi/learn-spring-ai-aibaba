@@ -15,6 +15,10 @@
         <module>rag-pgvector</module>
         <module>chat-memory</module>
         <module>image-demo</module>
+        <module>tool-structured</module>
+        <module>mcp-demo</module>
+        <module>rag-alibaba-demo</module>
+        <module>data-filter</module>
     </modules>
 
     <properties>

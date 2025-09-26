@@ -54,7 +54,15 @@ public class MemoryChatController {
     @GetMapping("/messages")
     public List<Message> messages(@RequestParam(defaultValue = "xiaohu")String conversationId){
         return messageWindowChatMemory.get(conversationId);
-
+    }
+    @GetMapping("/media")
+    public Flux<String> media(@RequestParam(defaultValue = "xiaohu")String conversationId){
+        return chatClient.prompt()
+                .user(u->u.text("Explain what do you see on this picture?"))
+                
+                .advisors(
+                        a->a.param(CONVERSATION_ID,conversationId)
+                ).stream().content();
     }
 
 }
