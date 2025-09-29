@@ -20,5 +20,9 @@ public class WeatherService {
         LocalDateTime now = LocalDateTime.now();
         return cityName + "现在时间是：" + now.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日 HH:mm:ss"));
     }
+    @Tool(description = "根据城市名称获取天气")
+    public String getWeather(String cityName) {
+        return cityName + "现在天气是：晴天";
+    }
 
 }

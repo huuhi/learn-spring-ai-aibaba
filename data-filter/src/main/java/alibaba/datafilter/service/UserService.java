@@ -1,8 +1,9 @@
 package alibaba.datafilter.service;
 
 import alibaba.datafilter.model.domain.User;
+import alibaba.datafilter.model.dto.LoginDTO;
 import com.baomidou.mybatisplus.extension.service.IService;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 /**
@@ -13,5 +14,11 @@ import org.springframework.stereotype.Service;
 @Service
 public interface UserService extends IService<User> {
 
-    Boolean verifyCode(String email, String authCode);
+
+    ResponseEntity<String> setPassword(String email, String password);
+
+    ResponseEntity<String> changePassword(String email, String oldPassword, String newPassword);
+
+
+    ResponseEntity<String> login(LoginDTO loginDTO);
 }

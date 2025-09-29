@@ -14,6 +14,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class CollectionServiceImpl extends ServiceImpl<CollectionMapper, Collection>
     implements CollectionService {
+    public Boolean isContains(String collectionName) {
+//        TODO 之后需要修改用户ID
+        return lambdaQuery()
+                .eq(Collection::getName, collectionName)
+                .eq(Collection::getUserId,1078833153).count() > 0;
+
+    }
 
 }
 

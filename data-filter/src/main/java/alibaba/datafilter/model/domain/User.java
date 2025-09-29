@@ -13,9 +13,9 @@ import lombok.Data;
 
 /**
  * 
- * @TableName user
+ * @TableName users
  */
-@TableName(value ="user")
+@TableName(value ="users")
 @Data
 @Builder
 public class User implements Serializable {

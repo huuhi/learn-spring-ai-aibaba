@@ -44,6 +44,7 @@ public class MilvusConfig {
         return collectionName -> MilvusVectorStore.builder(milvusClient, embeddingModel)
                 .collectionName(collectionName)
                 .databaseName(databaseName)
+                .initializeSchema(true)
                 .build();
     }
 }

@@ -1,9 +1,11 @@
 package alibaba.datafilter.service.impl;
 
+import alibaba.datafilter.common.concurrent.UserHolder;
 import alibaba.datafilter.common.utils.MilvusVectorStoreUtils;
 import alibaba.datafilter.model.dto.RequestDTO;
 import alibaba.datafilter.model.dto.StreamResponse;
 import alibaba.datafilter.service.ChatService;
+import alibaba.datafilter.service.CollectionService;
 import cn.hutool.core.lang.UUID;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import jakarta.annotation.Resource;
@@ -31,14 +33,20 @@ import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
 @Service
 @Slf4j
 public class ChatServiceImpl implements ChatService {
+    private final Function<String, MilvusVectorStore> dynamicVectorStoreFactory;
+    private final MilvusVectorStoreUtils milvusVectorStoreUtils;
+    private final CollectionService collectionService;
     @Resource
-    private Function<String, MilvusVectorStore> dynamicVectorStoreFactory;
-    @Resource
-    private  MilvusVectorStoreUtils milvusVectorStoreUtils;
-    @Resource
-    private  ChatClient chatClient;
+    private   ChatClient chatClient;
     private final List<String> models=List.of("qwen-max","qwen-plus-latest","qwen3-max-2025-09-23","qwen3-max-preview",
             "qwen-plus-2025-07-28","qwen-turbo","Moonshot-Kimi-K2-Instruct","deepseek-r1","deepseek-v3");
+
+    public ChatServiceImpl(Function<String, MilvusVectorStore> dynamicVectorStoreFactory, MilvusVectorStoreUtils milvusVectorStoreUtils, CollectionService collectionService) {
+        this.dynamicVectorStoreFactory = dynamicVectorStoreFactory;
+        this.milvusVectorStoreUtils = milvusVectorStoreUtils;
+        this.collectionService = collectionService;
+    }
+
     @Override
     public ResponseEntity<String> createConversation() {
         String string = UUID.fastUUID().toString();
@@ -57,13 +65,15 @@ public class ChatServiceImpl implements ChatService {
         }
 //        知识库检索的内容
         String searchContent="";
+//        获取知识库名称
+        String collectionName = requestDTO.getRag();
 //       判断用户是否开启了rag检索，如果开启需要想判断知识库是否存在
 //        TODO 判断知识库是否存在，如果不存在不需要 检索。直接在数据库判断
-        if(requestDTO.getRag()!=null&& !requestDTO.getRag().isEmpty()){
+        if(collectionName!=null&& !collectionName.isEmpty()&&collectionService.isContains(collectionName)){
             searchContent=ragSearch(question, requestDTO.getRag());
         }
-        String prompt=String.format("用户的问题:%s,知识库检索的结果:%s,注意:知识库的内容可能为空，如果为空，说明用户没有开启知识库检索或者知识库没有检索的内容，需要你直接回答用户的问题，w's",question,searchContent);
-        Flux<ChatResponse> responseFlux = chatClient.prompt(requestDTO.getQuestion())
+        String prompt=String.format("用户的问题:%s,知识库检索的结果:%s,注意:知识库的内容可能为空，如果为空，说明用户没有开启知识库检索或者知识库没有检索的内容，需要你直接回答用户的问题",question,searchContent);
+        Flux<ChatResponse> responseFlux = chatClient.prompt(prompt)
                 .advisors(p -> p.param(CONVERSATION_ID, requestDTO.getConversationId()))
                 .options(dashscopeChatOptionsBuilder.build())
                 .stream()
@@ -76,8 +86,7 @@ public class ChatServiceImpl implements ChatService {
             Flux<StreamResponse> eventFlux = Flux.empty();
             if (chatResponse.getResults() != null && !chatResponse.getResults().isEmpty()) {
                 Map<String, Object> metadata = chatResponse.getResults().get(0).getOutput().getMetadata();
-                // ★★★ DEBUGGING: 打印所有元数据，找到搜索结果的真实 key
-                log.info("Full metadata received: {}", metadata);
+//                log.info("Full metadata received: {}", metadata);
                 // 2. 检查是否有思考内容
                 if (metadata.containsKey("reasoningContent")) {
                     Object reasoning = metadata.get("reasoningContent");

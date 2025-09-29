@@ -1,0 +1,26 @@
+spring:
+  ai:
+    dashscope:
+      api-key: ${AI_DASHSCOPE_API_KEY}
+      chat:
+        options:
+          model: qwen-turbo
+    mcp:
+      client:
+        toolcallback:
+          enabled: true
+        request-timeout: 30s
+#        sse:
+#          connections:
+#            server1:
+#              url: https://mcp.api-inference.modelscope.net/b7e14feaf8a342/sse
+
+        stdio:
+          servers-configuration: classpath:/mcp-servers-config.json
+logging:
+  level:
+    io:
+      modelcontextprotocol:
+        client:
+          transport: DEBUG
+    reactor.netty.http.client: DEBUG

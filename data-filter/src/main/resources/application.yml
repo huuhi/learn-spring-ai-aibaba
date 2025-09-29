@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://10.160.255.223:5432/data_filter
+    url: jdbc:postgresql://${DOCKER_IP}:5432/data_filter
     password: postgres
     username: postgres
     hikari:
@@ -23,10 +23,12 @@ spring:
     vectorstore:
       milvus:
         client:
-          host: 10.160.255.223
+          host: ${DOCKER_IP}
           port: 19530
         database-name: dataFilter
         embedding-dimension: 1024
+        initialize-schema: true
+        collection-name: vector_store
   mail:
     host: smtp.qq.com
     port: 587
@@ -40,19 +42,27 @@ spring:
             enable: true
   data:
     redis:
-      host: 10.160.255.223
+      host: ${DOCKER_IP}
       password: redis123
+      port: 6379
       lettuce:
         pool:
           max-idle: 10
           max-active: 20
           min-idle: 5
+        shutdown-timeout: 1000ms
   aliyun:
     bucket-name: spring-ai-alibaba
     region: cn-shenzhen
     endpoint: https://oss-cn-shenzhen.aliyuncs.com
-    dir: user/avatar/
+    dir: user/avatar
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 110MB
 logging:
   level:
     alibaba:
       datafilter: debug
+server:
+  port: 8999

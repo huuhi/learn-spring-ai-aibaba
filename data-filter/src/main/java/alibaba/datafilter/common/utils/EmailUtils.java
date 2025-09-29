@@ -24,22 +24,26 @@ public class EmailUtils {
         this.redisUtils = redisUtils;
     }
 
-    public void sendEmail(String to, String subject) throws MessagingException {
+    public Boolean sendEmail(String to, String subject) {
         String verificationCode = randomGenerator.generate();
 //         写入redis缓存！有效期5分钟！
         redisUtils.set(EMAIL_CODE_PREFIX+to,verificationCode,5L);
         MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-        
-        helper.setFrom("3108967414@qq.com");  // 发件人
-        helper.setTo(to);                     // 收件人
-        helper.setSubject(subject);           // 邮件主题
-        
-        // 创建HTML格式的邮件内容
-        String htmlContent = buildHtmlContent(verificationCode);
-        helper.setText(htmlContent, true);    // 设置为HTML格式
-        
+        MimeMessageHelper helper = null;
+        try {
+            helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom("3108967414@qq.com");  // 发件人
+            helper.setTo(to);                     // 收件人
+            helper.setSubject(subject);           // 邮件主题
+
+            // 创建HTML格式的邮件内容
+            String htmlContent = buildHtmlContent(verificationCode);
+            helper.setText(htmlContent, true);    // 设置为HTML格式
+        } catch (MessagingException e) {
+            return false;
+        }
         mailSender.send(message);
+        return true;
     }
     
     // 构建HTML格式的邮件内容

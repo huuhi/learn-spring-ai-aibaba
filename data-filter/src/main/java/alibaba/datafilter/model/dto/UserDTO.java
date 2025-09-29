@@ -12,21 +12,7 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class UserDTO {
+    private Integer id;
     // name 非必须。
     private String name;
-
-    /**
-     * 必需
-     */
-    private String email;
-
-    /**
-     *非必须
-     */
-    private String password;
-
-    /**
-     * 非必须
-     */
-    private String avatar;
 }

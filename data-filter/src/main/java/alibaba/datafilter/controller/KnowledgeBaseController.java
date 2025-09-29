@@ -33,12 +33,12 @@ public class KnowledgeBaseController {
         if(content==null||content.trim().isEmpty()||collectionName==null||collectionName.trim().isEmpty()){
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("文本内容无效或者知识库为空");
         }
-        try {
-            knowledgeBaseService.insertText(content,collectionName);
+
+        Boolean success = knowledgeBaseService.insertText(content, collectionName);
+        if(success){
             return ResponseEntity.ok("插入成功");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("插入文本内容失败:"+e.getMessage());
         }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("插入文本内容失败");
     }
 
     /**
@@ -86,8 +86,8 @@ public class KnowledgeBaseController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("集合名称无效");
         }
         try {
-            knowledgeBaseService.createCollection(collectionName, description);
-            return ResponseEntity.ok("集合创建成功");
+            String collection = knowledgeBaseService.createCollection(collectionName, description);
+            return ResponseEntity.ok(collection);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("集合创建失败: " + e.getMessage());
         }

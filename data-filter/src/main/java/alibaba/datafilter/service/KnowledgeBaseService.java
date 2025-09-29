@@ -14,7 +14,7 @@ import java.util.List;
  */
 @Service
 public interface KnowledgeBaseService {
-    void insertText(String content, String collectionName);
+    Boolean insertText(String content, String collectionName);
 
     String loadFileByType(MultipartFile[] files, String collectionName);
 

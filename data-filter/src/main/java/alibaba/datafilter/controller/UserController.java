@@ -1,15 +1,14 @@
 package alibaba.datafilter.controller;
 
 import alibaba.datafilter.common.utils.EmailUtils;
+import alibaba.datafilter.model.dto.LoginDTO;
 import alibaba.datafilter.service.UserService;
-import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import javax.validation.Valid;
 
 /**
  * @author 胡志坚
@@ -26,27 +25,29 @@ public class UserController {
     private  final UserService userService;
     private final EmailUtils emailUtils;
     @PostMapping("/register")
-    public ResponseEntity<String> login(@RequestParam String email, @RequestParam String authCode) {
-//        TODO：需要用到redis，去查看缓存里的验证码
-        Boolean correct = userService.verifyCode(email, authCode);
-        if (correct) {
-            return ResponseEntity.ok("注册成功");
-        }
-        return ResponseEntity.badRequest().body("验证码错误");
+    public ResponseEntity<String> login(@Valid @RequestBody LoginDTO loginDTO) {
+//        需要用到redis，去查看缓存里的验证码  已完成
+        return userService.login(loginDTO);
     }
 
 //    发送邮箱验证码
     @PostMapping("/sendEmail")
-    public String sendEmail(@RequestParam String email) {
-//        TODO:需要用到redis，生成验证码，并保存到缓存里
-        try {
-
-            emailUtils.sendEmail(email,"登录验证码");
-        } catch (MessagingException e) {
-            log.error("发送邮件失败:{}",e.getMessage());
-            throw new RuntimeException(e);
+    public ResponseEntity<String> sendEmail(@RequestParam String email) {
+//        需要用到redis，生成验证码，并保存到缓存里   已完成
+        Boolean success = emailUtils.sendEmail(email, "登录验证码");
+        if (success){
+            return ResponseEntity.ok("发送成功");
         }
-        return "发送成功";
+        return ResponseEntity.badRequest().body("发送邮件失败");
     }
-
+//    设置密码
+    @PutMapping("/setPassword")
+    public ResponseEntity<String> setPassword(@RequestParam String email, @RequestParam String password) {
+        return userService.setPassword(email, password);
+    }
+//    修改密码
+    @PutMapping("/changePassword")
+    public ResponseEntity<String> changePassword(@RequestParam String email, @RequestParam String oldPassword, @RequestParam String newPassword) {
+        return userService.changePassword(email, oldPassword, newPassword);
+    }
 }

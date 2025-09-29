@@ -2,7 +2,17 @@ package alibaba.datafilter.common.utils;
 
 import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.service.impl.CollectionServiceImpl;
+import io.milvus.client.MilvusServiceClient;
+import io.milvus.grpc.DataType;
+import io.milvus.param.ConnectParam;
+import io.milvus.param.IndexType;
+import io.milvus.param.MetricType;
+import io.milvus.param.collection.CreateCollectionParam;
+import io.milvus.param.collection.FieldType;
+import io.milvus.param.index.CreateIndexParam;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,9 +22,21 @@ import org.springframework.stereotype.Component;
  * 说明: Milvus 工具类
  */
 @Component
+@Slf4j
 public class MilvusVectorStoreUtils {
     @Resource
     private final CollectionServiceImpl collectionService;
+    @Value("${spring.ai.vectorstore.milvus.client.host}")
+    private String milvusHost;
+
+    @Value("${spring.ai.vectorstore.milvus.client.port}")
+    private int milvusPort;
+
+    @Value("${spring.ai.vectorstore.milvus.database-name:default}")
+    private String databaseName;
+
+    @Value("${spring.ai.vectorstore.milvus.embedding-dimension:1536}")
+    private int embeddingDimension;
 
     public MilvusVectorStoreUtils(CollectionServiceImpl collectionService) {
         this.collectionService =  collectionService;
@@ -30,9 +52,77 @@ public class MilvusVectorStoreUtils {
 //        需要判断用户是否有这个知识库
         Collection one = collectionService.query()
                 .eq("name", collectionName)
-                .eq("id", 1)
+                .eq("user_id", 1078833153)
                 .one();
         return one != null;
     }
+    public void createIndexForCollection(String collectionName) {
+        log.info("正在手动创建collection: {}", collectionName);
+        MilvusServiceClient milvusClient = new MilvusServiceClient(
+                ConnectParam.newBuilder()
+                        .withHost(milvusHost)
+                        .withPort(milvusPort)
+                        .build()
+        );
 
+        // 定义字段
+        FieldType docIdField = FieldType.newBuilder()
+                .withName("doc_id")
+                .withDataType(DataType.VarChar)
+                .withPrimaryKey(true)
+                .withMaxLength(65535)
+                .build();
+
+        FieldType embeddingField = FieldType.newBuilder()
+                .withName("embedding")
+                .withDataType(DataType.FloatVector)
+                .withDimension(embeddingDimension)
+                .build();
+
+        FieldType contentField = FieldType.newBuilder()
+                .withName("content")
+                .withDataType(DataType.VarChar)
+                .withMaxLength(65535)
+                .build();
+
+        FieldType metadataField = FieldType.newBuilder()
+                .withName("metadata")
+                .withDataType(DataType.JSON)
+                .build();
+
+        // 创建collection
+        CreateCollectionParam createCollectionParam = CreateCollectionParam.newBuilder()
+                .withCollectionName(collectionName)
+                .withDatabaseName(databaseName)
+                .withDescription("Collection for " + collectionName)
+                .addFieldType(docIdField)
+                .addFieldType(embeddingField)
+                .addFieldType(contentField)
+                .addFieldType(metadataField)
+                .build();
+
+        milvusClient.createCollection(createCollectionParam);
+
+        // 创建索引
+        CreateIndexParam createIndexParam = CreateIndexParam.newBuilder()
+                .withCollectionName(collectionName)
+                .withDatabaseName(databaseName)
+                .withFieldName("embedding")
+                .withIndexType(IndexType.IVF_FLAT)
+                .withMetricType(MetricType.COSINE)
+                .withExtraParam("{\"nlist\":128}")
+                .build();
+
+        milvusClient.createIndex(createIndexParam);
+
+        // 加载collection
+        milvusClient.loadCollection(
+                io.milvus.param.collection.LoadCollectionParam.newBuilder()
+                        .withCollectionName(collectionName)
+                        .withDatabaseName(databaseName)
+                        .build()
+        );
+
+        log.info("成功创建collection: {}", collectionName);
+    }
 }
