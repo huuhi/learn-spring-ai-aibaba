@@ -65,4 +65,4 @@ logging:
     alibaba:
       datafilter: debug
 server:
-  port: 8999
+  port: 9090

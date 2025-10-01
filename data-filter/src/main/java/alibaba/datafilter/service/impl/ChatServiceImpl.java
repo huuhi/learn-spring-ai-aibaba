@@ -115,7 +115,6 @@ public class ChatServiceImpl implements ChatService {
         MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
         List<Document> documents = vectorStore.similaritySearch(query);
         StringBuilder stringBuilder = new StringBuilder();
-        assert documents != null;
         for (Document doc : documents) {
             stringBuilder.append(doc.getText()).append("\n\n");
         }

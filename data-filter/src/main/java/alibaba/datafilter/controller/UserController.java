@@ -24,7 +24,7 @@ public class UserController {
 //    TODO:暂时不写拦截器，之后再写
     private  final UserService userService;
     private final EmailUtils emailUtils;
-    @PostMapping("/register")
+    @PostMapping("/login")
     public ResponseEntity<String> login(@Valid @RequestBody LoginDTO loginDTO) {
 //        需要用到redis，去查看缓存里的验证码  已完成
         return userService.login(loginDTO);
