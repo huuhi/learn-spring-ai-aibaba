@@ -6,6 +6,10 @@
         "-y",
         "12306-mcp"
       ]
+    },
+    "howtocook-mcp": {
+      "command": "node",
+      "args": ["D:\\Github\\mcp\\HowToCook-mcp\\build\\index.js"]
     }
   }
 }

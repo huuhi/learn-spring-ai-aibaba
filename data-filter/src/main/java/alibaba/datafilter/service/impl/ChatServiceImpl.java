@@ -1,11 +1,12 @@
 package alibaba.datafilter.service.impl;
 
-import alibaba.datafilter.common.concurrent.UserHolder;
+
 import alibaba.datafilter.common.utils.MilvusVectorStoreUtils;
 import alibaba.datafilter.model.dto.RequestDTO;
 import alibaba.datafilter.model.dto.StreamResponse;
 import alibaba.datafilter.service.ChatService;
 import alibaba.datafilter.service.CollectionService;
+import alibaba.datafilter.tools.DataFilterTool;
 import cn.hutool.core.lang.UUID;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import jakarta.annotation.Resource;
@@ -36,15 +37,17 @@ public class ChatServiceImpl implements ChatService {
     private final Function<String, MilvusVectorStore> dynamicVectorStoreFactory;
     private final MilvusVectorStoreUtils milvusVectorStoreUtils;
     private final CollectionService collectionService;
+    private final DataFilterTool dataFilterTool;
     @Resource
     private   ChatClient chatClient;
     private final List<String> models=List.of("qwen-max","qwen-plus-latest","qwen3-max-2025-09-23","qwen3-max-preview",
             "qwen-plus-2025-07-28","qwen-turbo","Moonshot-Kimi-K2-Instruct","deepseek-r1","deepseek-v3");
 
-    public ChatServiceImpl(Function<String, MilvusVectorStore> dynamicVectorStoreFactory, MilvusVectorStoreUtils milvusVectorStoreUtils, CollectionService collectionService) {
+    public ChatServiceImpl(Function<String, MilvusVectorStore> dynamicVectorStoreFactory, MilvusVectorStoreUtils milvusVectorStoreUtils, CollectionService collectionService, DataFilterTool dataFilterTool) {
         this.dynamicVectorStoreFactory = dynamicVectorStoreFactory;
         this.milvusVectorStoreUtils = milvusVectorStoreUtils;
         this.collectionService = collectionService;
+        this.dataFilterTool = dataFilterTool;
     }
 
     @Override
@@ -84,7 +87,7 @@ public class ChatServiceImpl implements ChatService {
 
             // 1. 准备一个容器来存放这个块产生的所有事件
             Flux<StreamResponse> eventFlux = Flux.empty();
-            if (chatResponse.getResults() != null && !chatResponse.getResults().isEmpty()) {
+            if (!chatResponse.getResults().isEmpty()) {
                 Map<String, Object> metadata = chatResponse.getResults().get(0).getOutput().getMetadata();
 //                log.info("Full metadata received: {}", metadata);
                 // 2. 检查是否有思考内容
@@ -96,15 +99,46 @@ public class ChatServiceImpl implements ChatService {
                 }
             }
             // 4. 检查是否有真正的回答内容
-            if (chatResponse.getResult() != null && chatResponse.getResult().getOutput() != null) {
-                String content = chatResponse.getResult().getOutput().getText();
-                if (content != null && !content.isEmpty()) {
-                    eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("CONTENT", content)));
+            chatResponse.getResult();
+            chatResponse.getResult();
+            String content = chatResponse.getResult().getOutput().getText();
+            if (content != null && !content.isEmpty()) {
+                eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("CONTENT", content)));
+            }
+            return eventFlux;
+        });
+    }
+
+    @Override
+    public Flux<StreamResponse> dataFilterSearch(String query, String conversationId) {
+        Flux<ChatResponse> chatResponseFlux = chatClient.prompt("""
+                        回答用户问题，根据用户问题决定需不需要调用工具
+                        """)
+                .options(DashScopeChatOptions.builder().withEnableThinking(true).build())
+                .advisors(p -> p.param(CONVERSATION_ID,conversationId))
+                .user(query)
+                .tools(dataFilterTool)
+                .stream()
+                .chatResponse();
+        return chatResponseFlux.flatMap(chatResponse->{
+            Flux<StreamResponse> eventFlux = Flux.empty();
+            if(!chatResponse.getResults().isEmpty()){
+                Map<String, Object> metadata = chatResponse.getResults().get(0).getOutput().getMetadata();
+                if(metadata.containsKey("reasoningContent")){
+                    Object reasoning = metadata.get("reasoningContent");
+                    if(reasoning != null && !reasoning.toString().isEmpty()){
+                        eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("THINKING", reasoning)));
+                    }
+                }
+                String text = chatResponse.getResult().getOutput().getText();
+                if (text != null && !text.isEmpty()){
+                    eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("CONTENT", text)));
                 }
             }
             return eventFlux;
         });
     }
+
     private String ragSearch(String query,String collectionName){
 //        TODO 判断知识库是否存在，不存在直接返回""
         if(!milvusVectorStoreUtils.isValidCollectionName(collectionName)){

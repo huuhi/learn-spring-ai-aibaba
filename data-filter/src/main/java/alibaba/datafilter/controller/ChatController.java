@@ -45,6 +45,9 @@ public class ChatController {
     public List<Message> messages(@RequestParam String conversationId) {
         return messageWindowChatMemory.get(conversationId);
     }
-
-
+    @GetMapping(value="/data-filter",produces = "text/event-stream;charset=UTF-8")
+    public ResponseEntity<Flux<StreamResponse>> dataFilter(@RequestParam String query,
+                                                           @RequestParam String conversationId) {
+        return ResponseEntity.ok(chatService.dataFilterSearch(query, conversationId));
+    }
 }

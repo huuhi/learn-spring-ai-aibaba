@@ -20,4 +20,6 @@ public interface ChatService {
 
 //    聊天
     Flux<StreamResponse> chat(RequestDTO requestDTO);
+
+    Flux<StreamResponse> dataFilterSearch(String query, String conversationId);
 }

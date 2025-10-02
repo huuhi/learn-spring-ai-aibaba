@@ -1,25 +1,22 @@
 spring:
+  main:
+    allow-bean-definition-overriding: true
   ai:
     dashscope:
       api-key: ${AI_DASHSCOPE_API_KEY}
       chat:
         options:
           model: qwen-turbo
+
     mcp:
       client:
-        toolcallback:
-          enabled: true
         request-timeout: 60s
         sse:
           connections:
             server1:
               url: http://localhost:9999
-#        stdio:
-#          servers-configuration: classpath:/mcp-servers-config.json
-logging:
-  level:
-    io:
-      modelcontextprotocol:
-        client:
-          transport: DEBUG
-    reactor.netty.http.client: DEBUG
+    graph:
+      nodes:
+        node2servers:
+          mcp-node:
+            - server1
