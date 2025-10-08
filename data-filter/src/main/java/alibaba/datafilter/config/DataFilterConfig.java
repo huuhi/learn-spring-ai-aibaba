@@ -53,7 +53,7 @@ public class DataFilterConfig {
                 .addNode("filtered", node_async(new FilterNode(builder)))
                 .addEdge(StateGraph.START, "search")
                 .addConditionalEdges("search", AsyncEdgeAction.edge_async((new RouterNode(builder))), Map.of(
-                        "SEARCH_AGAIN", "search", "FILTER", "filtered"
+                        "CONTINUE", "search", "OK", "filtered"
                 ))
                 .addEdge("filtered", StateGraph.END);
         GraphRepresentation representation = stateGraph.getGraph(GraphRepresentation.Type.PLANTUML, "data filter flow");

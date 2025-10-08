@@ -1,6 +1,7 @@
 package alibaba.datafilter.tools;
 
 import alibaba.datafilter.config.DataFilterConfig;
+import alibaba.datafilter.model.domain.ResearchPlanStep;
 import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
@@ -10,7 +11,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -49,5 +52,9 @@ public class DataFilterTool {
             log.error("执行数据过滤工作流出错", e);
             return "执行数据过滤工作流出错: " + e.getMessage();
         }
+    }
+    @Tool(name="get_now_data",description = "获取当前时间")
+    public String getNowData(){
+        return "当前时间是：" + LocalDateTime.now();
     }
 }
