@@ -12,11 +12,11 @@ import alibaba.datafilter.service.CollectionService;
 import alibaba.datafilter.tools.DataFilterTool;
 import alibaba.datafilter.tools.ResearchTool;
 import cn.hutool.core.lang.UUID;
-import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.document.Document;
@@ -91,32 +91,7 @@ public class ChatServiceImpl implements ChatService {
                 .options(dashscopeChatOptionsBuilder.build())
                 .stream()
                 .chatResponse();
-        return responseFlux.flatMap(chatResponse -> {
-            // flatMap 可以将一个元素转变为 0 到 N 个新元素
-            // 完美适配我们的场景：一个 ChatResponse 块可能同时包含思考和内容
-
-            // 1. 准备一个容器来存放这个块产生的所有事件
-            Flux<StreamResponse> eventFlux = Flux.empty();
-            if (!chatResponse.getResults().isEmpty()) {
-                Map<String, Object> metadata = chatResponse.getResults().get(0).getOutput().getMetadata();
-//                log.info("Full metadata received: {}", metadata);
-                // 2. 检查是否有思考内容
-                if (metadata.containsKey("reasoningContent")) {
-                    Object reasoning = metadata.get("reasoningContent");
-                    if(reasoning != null && !reasoning.toString().isEmpty()){
-                        eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("THINKING", reasoning)));
-                    }
-                }
-            }
-            // 4. 检查是否有真正的回答内容
-            chatResponse.getResult();
-            chatResponse.getResult();
-            String content = chatResponse.getResult().getOutput().getText();
-            if (content != null && !content.isEmpty()) {
-                eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("CONTENT", content)));
-            }
-            return eventFlux;
-        });
+        return getStreamResponseFlux(responseFlux);
     }
 
     @Override
@@ -133,23 +108,7 @@ public class ChatServiceImpl implements ChatService {
                 .tools(dataFilterTool)
                 .stream()
                 .chatResponse();
-        return chatResponseFlux.flatMap(chatResponse->{
-            Flux<StreamResponse> eventFlux = Flux.empty();
-            if(!chatResponse.getResults().isEmpty()){
-                Map<String, Object> metadata = chatResponse.getResults().get(0).getOutput().getMetadata();
-                if(metadata.containsKey("reasoningContent")){
-                    Object reasoning = metadata.get("reasoningContent");
-                    if(reasoning != null && !reasoning.toString().isEmpty()){
-                        eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("THINKING", reasoning)));
-                    }
-                }
-                String text = chatResponse.getResult().getOutput().getText();
-                if (text != null && !text.isEmpty()){
-                    eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("CONTENT", text)));
-                }
-            }
-            return eventFlux;
-        });
+        return getStreamResponseFlux(chatResponseFlux);
     }
 
     @Override
@@ -186,43 +145,70 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public Flux<StreamResponse> research(ResearchQuestionDTO researchQuestionDTO) {
         Flux<ChatResponse> chatResponseFlux = chatClient.prompt()
+                .system("""
+                你是一位专业且高效的研究助手，你的核心职责是根据提供的研究计划，**从头到尾执行所有研究步骤，并最终生成一份完整、结构化的综合研究报告。**
+                            请严格按照以下要求执行：
+                            1.  **理解任务：** 仔细分析每个研究步骤的要求和目标，理解原始研究问题。
+                            2.  **利用工具：** 主动且准确地调用外部联网搜索工具（researchTool）来获取权威、可靠的信息。
+                            3.  **信息处理：** 对搜索到的信息进行深度筛选、整理、分析和交叉验证，提取核心发现和论据。
+                            4.  **综合撰写：** 在所有研究步骤和信息收集完成后，将所有获取的信息进行逻辑整合，并**立即**开始撰写最终的研究报告。
+                            5.  **质量要求：** 确保研究结果与对应的步骤完全匹配，报告内容清晰、逻辑性强，直接回答原始研究问题，并达到预期的深度和广度。
+                """)
                 .user(u ->
                         u.text("""
-                    你是一个顶级深度研究助手，负责监督和协调一项复杂的深度研究任务。我将为你提供一份详细的研究计划，其中包含多个按优先级排列的研究步骤。
-                       **你的主要职责是：**
-                       1.  **理解**用户提出的原始研究问题。
-                       2.  **理解**我为你提供的每一个研究步骤的目的、描述和预期结果。
-                       3.  **确认**你已经准备好根据这份研究计划，开始指导后续的信息收集、分析和报告生成过程。
-                       4.  在整个研究过程中，作为幕后的智能大脑，为每个子任务提供必要的智能支持（例如生成搜索查询、总结信息、评估结果等），但具体的执行将由外部系统（Java工作流）协调。
-                       **原始研究问题：**
-                       {question}
-                       **以下是为你准备的详细研究计划（JSON格式，仅供参考，无需重复或评论每个步骤）：**
-                       {researchPlanStepsJson}
-                       你可以借助已经准备好的工具来进行研究！
-                       你需要确保最后的研究报告的严谨、准确和全面！
+                    **核心任务：** 你将作为一名研究专家，根据以下提供的研究计划执行所有研究活动，并直接产出最终的综合研究报告。你的本次响应**必须是**这份报告的开始部分或其主要内容，而不仅仅是关于任务进展的描述。
+                      **原始研究问题：**
+                      {question}
+                      **研究计划（JSON格式）：**
+                      {researchPlanStepsJson}
+                      **你的职责与详细执行流程：**
+                      1.  **解析研究计划：** 深入理解研究计划中的每个步骤，明确其具体要求和预期产出。
+                      2.  **工具执行（必要时）：** 对于需要外部数据支持的步骤，你必须主动、准确地调用 `researchTool` 工具来执行。
+                          *   请确保在调用工具时，参数 `search_key` 和 `data` 被正确填充。
+                          *   **切勿仅仅描述你将要调用工具，而是要实际执行调用并获取结果。**
+                      3.  **信息整合与分析：** 在所有研究步骤（包括所有 `researchTool` 调用）完成后，将所有收集到的信息进行全面、系统的整合、分析和总结。
+                      4.  **撰写最终研究报告（立即开始）：** 基于整合分析后的所有研究成果，你必须**立即开始撰写**最终的研究报告。
+                          *   **报告目标：** 报告应直接回应并深入探讨原始研究问题，全面覆盖研究计划中的所有步骤内容。
+                          *   **报告结构：** 请提供一个清晰的报告结构（例如，引言、背景、研究方法、各研究步骤的详细发现、讨论、结论等）。
+                          *   **字数指导：** 最终研究报告的期望字数在 10000-30000 字之间。**不要等待或声明，请直接开始报告内容。**
+                          *   **禁止中间声明：** 在所有研究步骤完成后，请勿再进行任何“我已完成研究，现在将开始撰写报告”之类的中间性说明。你的输出必须直接是报告内容。
+
+                      **重要提示：**
+                      -   严格遵循上述流程，先完成所有工具调用和数据收集，再进行报告撰写。
+                      -   你的本次输出的唯一目的是生成研究报告的内容。
                     """).param("question", researchQuestionDTO.getQuestion())
                                 .param("researchPlanStepsJson", JSONUtil.toJsonStr(researchQuestionDTO.getResearchPlanSteps())))
                 .advisors(p -> p.param(CONVERSATION_ID, researchQuestionDTO.getConversationId()))
+                .options(DashScopeChatOptions.builder().withEnableThinking(true).build())
                 .tools(researchTool)
                 .stream()
                 .chatResponse();
 //        researchQuestionDTO.getResearchPlanSteps().
 
 
-        return   chatResponseFlux.flatMap(chatResponse -> {
-            // flatMap 可以将一个元素转变为 0 到 N 个新元素
-            // 完美适配我们的场景：一个 ChatResponse 块可能同时包含思考和内容
+        return getStreamResponseFlux(chatResponseFlux);
 
-            // 1. 准备一个容器来存放这个块产生的所有事件
+    }
+
+    @NotNull
+    private Flux<StreamResponse> getStreamResponseFlux(Flux<ChatResponse> chatResponseFlux) {
+        return chatResponseFlux.flatMap(chatResponse->{
             Flux<StreamResponse> eventFlux = Flux.empty();
-            chatResponse.getResult();
-            String content = chatResponse.getResult().getOutput().getText();
-            if (content != null && !content.isEmpty()) {
-                eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("CONTENT", content)));
+            if(!chatResponse.getResults().isEmpty()){
+                Map<String, Object> metadata = chatResponse.getResults().get(0).getOutput().getMetadata();
+                if(metadata.containsKey("reasoningContent")){
+                    Object reasoning = metadata.get("reasoningContent");
+                    if(reasoning != null && !reasoning.toString().isEmpty()){
+                        eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("THINKING", reasoning)));
+                    }
+                }
+                String text = chatResponse.getResult().getOutput().getText();
+                if (text != null && !text.isEmpty()){
+                    eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("CONTENT", text)));
+                }
             }
             return eventFlux;
         });
-
     }
 
     private String ragSearch(String query,String collectionName){

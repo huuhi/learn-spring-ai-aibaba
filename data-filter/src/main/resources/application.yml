@@ -16,10 +16,10 @@ spring:
       api-key: ${AI_DASHSCOPE_API_KEY}
       chat:
         options:
-          model: qwen-plus-latest
+          model: qwen3-max
       embedding:
         options:
-          model: text-embedding-v3
+          model: text-embedding-v4
     vectorstore:
       milvus:
         client:
@@ -40,6 +40,9 @@ spring:
           auth: true
           starttls:
             enable: true
+  mvc:
+    async:
+      request-timeout: 1000000
   data:
     redis:
       host: ${DOCKER_IP}

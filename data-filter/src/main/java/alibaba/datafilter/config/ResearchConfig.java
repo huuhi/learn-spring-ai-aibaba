@@ -1,9 +1,6 @@
 package alibaba.datafilter.config;
 
-import alibaba.datafilter.node.EndNode;
-import alibaba.datafilter.node.RouterNode;
-import alibaba.datafilter.node.SearchNode;
-import alibaba.datafilter.node.TaskNode;
+import alibaba.datafilter.node.*;
 import cn.hutool.core.lang.hash.Hash;
 import com.alibaba.cloud.ai.graph.KeyStrategy;
 import com.alibaba.cloud.ai.graph.KeyStrategyFactory;
@@ -40,19 +37,19 @@ public class ResearchConfig {
         KeyStrategyFactory keyStrategyFactory=()->{
             HashMap<String, KeyStrategy> map = new HashMap<>();
             map.put("plan",new ReplaceStrategy());
-            map.put("query",new ReplaceStrategy());
+//            map.put("query",new ReplaceStrategy());
             map.put("search_key",new ReplaceStrategy());
-            map.put("search_result",new ReplaceStrategy());
+            map.put("research_result",new ReplaceStrategy());
             return map;
         };
         return new StateGraph(keyStrategyFactory)
-                .addNode("task", node_async(new TaskNode(builder)))
-                .addNode("research", node_async(new SearchNode(builder)))
+//                .addNode("task", node_async(new TaskNode(builder)))
+                .addNode("research", node_async(new ResearchNode(builder)))
                 .addNode("end_node", node_async(new EndNode()))
-                .addEdge(StateGraph.START, "task")
-                .addEdge("task","research")
+//                .addEdge(StateGraph.START, "task")
+                .addEdge(StateGraph.START,"research")
                 .addConditionalEdges("research", AsyncEdgeAction.edge_async((new RouterNode(builder))), Map.of(
-                        "CONTINUE", "task", "OK", "end_node"
+                        "CONTINUE", "research", "OK", "end_node"
                 ))
                 .addEdge("end_node",StateGraph.END);
     }

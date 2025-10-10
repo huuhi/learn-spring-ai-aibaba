@@ -37,7 +37,7 @@ public class ResearchTool {
 
     
     // 你可以根据需要添加更多工具方法
-    @Tool(name = "research_with_plan", description = "根据研究计划执行研究工作流")
+    @Tool(name = "research_with_plan", description = "根据研究计划执行研究工作流,只完成需要搜索的步骤")
     public String executeResearchWithPlan(List<ResearchPlanStep> planSteps) {
         try {
             RunnableConfig runnableConfig = RunnableConfig.builder().threadId("research-with-plan-thread").build();
@@ -49,7 +49,7 @@ public class ResearchTool {
             Optional<OverAllState> result = this.compiledGraph.invoke(inputs, runnableConfig);
             
             if (result.isPresent()) {
-                return result.get().value("research", "未找到研究结果");
+                return result.get().value("research_result", "未找到研究结果");
             } else {
                 return "工作流执行未返回结果";
             }

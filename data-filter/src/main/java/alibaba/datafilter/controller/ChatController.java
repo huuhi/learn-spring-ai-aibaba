@@ -58,7 +58,7 @@ public class ChatController {
         return chatService.developPlan(question);
     }
 //    开始研究！
-    @PostMapping("/research")
+    @PostMapping(value = "/research",produces = "text/event-stream;charset=UTF-8")
     public ResponseEntity<Flux<StreamResponse>> research(@RequestBody ResearchQuestionDTO researchQuestionDTO) {
         return ResponseEntity.ok(chatService.research(researchQuestionDTO));
     }
