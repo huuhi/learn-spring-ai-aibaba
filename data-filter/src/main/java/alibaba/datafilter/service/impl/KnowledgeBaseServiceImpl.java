@@ -6,14 +6,6 @@ import alibaba.datafilter.model.dto.UserDTO;
 import alibaba.datafilter.service.CollectionService;
 import alibaba.datafilter.service.KnowledgeBaseService;
 import alibaba.datafilter.common.utils.MilvusVectorStoreUtils;
-import io.milvus.client.MilvusServiceClient;
-import io.milvus.grpc.DataType;
-import io.milvus.param.ConnectParam;
-import io.milvus.param.IndexType;
-import io.milvus.param.MetricType;
-import io.milvus.param.collection.CreateCollectionParam;
-import io.milvus.param.collection.FieldType;
-import io.milvus.param.index.CreateIndexParam;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -22,7 +14,7 @@ import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,9 +23,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.function.Function;
 
 /**
@@ -81,7 +71,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
 
     @Override
-    public String loadFileByType(MultipartFile[] files, String collectionName) {
+    public String loadFileByType(MultipartFile[] files, String collectionName, String sourceDescription) {
         int successes = 0;
         int failures = 0;
         MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
@@ -92,7 +82,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             milvusVectorStoreUtils.createIndexForCollection(collectionName);
         }
         for (MultipartFile file:files){
-            if(processingType(file,vectorStore)){
+            if(processingType(file,vectorStore,sourceDescription)){
                 successes++;
             }else failures++;
         }
@@ -119,13 +109,20 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
-    public String createCollection(String collectionName, String description) {
+    public ResponseEntity<String> createCollection(String collectionName, String description, Boolean isSystem) {
         UserHolder.saveUser(new UserDTO(1078833153,"小小怪cC087z"));
         //        TODO 之后要把用户ID修改为真实的用户ID
         UserDTO user = UserHolder.getUser();
         if (user==null){
             log.warn("用户未登录:{}", user);
-            return "当前未登录！";
+            return ResponseEntity.status(500).body("用户未登录");
+        }
+//        查看是否是系统知识库
+        if(isSystem){
+//            查看是否是系统管理员
+            if(!user.getId().equals(1078833153)){
+                return ResponseEntity.badRequest().body("权限不足！");
+            }
         }
 //        获取当前用户
 //        需要查看用户的知识库数量，如果>=10,不允许创建新的知识库
@@ -135,19 +132,23 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 .count().intValue();
         if(count>=10){
             log.warn("用户已创建10个知识库，不允许创建新的知识库");
-            return "知识库已达上限";
+            return ResponseEntity.status(500).body("用户已创建10个知识库，不允许创建新的知识库");
         }
-        boolean save = collectionService.save(Collection.builder().name(collectionName).description(description).userId(user.getId()).build());
+        Collection.CollectionBuilder collectionBuilder = Collection.builder().name(collectionName).description(description).userId(user.getId());
+        if (isSystem){
+            collectionBuilder.isSystem(true);
+        }
+        boolean save = collectionService.save(collectionBuilder.build());
         if(!save){
             log.warn("创建知识库失败");
-            return "创建失败";
+            return  ResponseEntity.status(500).body("创建知识库失败");
         }
 //        这里直接创建知识库
         milvusVectorStoreUtils.createIndexForCollection(collectionName);
-        return "创建成功！";
+        return ResponseEntity.ok("创建成功");
     }
 
-    private Boolean processingType(MultipartFile file, MilvusVectorStore vectorStore) {
+    private Boolean processingType(MultipartFile file, MilvusVectorStore vectorStore,String sourceDescription) {
         Assert.notNull(file, "文件为空！");
         log.info("开始处理文件：fileName:{},fileSize:{}", file.getOriginalFilename(), file.getSize());
 
@@ -177,6 +178,21 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             List<Document> splitDocuments = new ArrayList<>();
             for (Document document : documents) {
                 List<Document> splits = textSplitter.apply(List.of(document));
+                for (Document split : splits) {
+                    split.getMetadata();
+                    Map<String, Object> metadata = split.getMetadata();
+                    Map<String, Object> newMetadata = new HashMap<>(metadata);
+                    newMetadata.put("source_description", sourceDescription);
+                    newMetadata.put("file_name", fileName);
+
+                    Document enrichedDoc = new Document(
+                            Objects.requireNonNull(split.getText()),
+                            newMetadata
+                    );
+                    splitDocuments.add(enrichedDoc);
+                }
+
+
                 splitDocuments.addAll(splits);
             }
             vectorStore.add(splitDocuments);

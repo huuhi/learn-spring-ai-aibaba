@@ -40,6 +40,8 @@ public class Collection implements Serializable {
      */
     private Integer userId;
 
+    private Boolean isSystem;
+
     @Serial
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;

@@ -1,6 +1,7 @@
 package alibaba.datafilter.service;
 
 import org.springframework.ai.document.Document;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -16,9 +17,9 @@ import java.util.List;
 public interface KnowledgeBaseService {
     Boolean insertText(String content, String collectionName);
 
-    String loadFileByType(MultipartFile[] files, String collectionName);
+    String loadFileByType(MultipartFile[] files, String collectionName, String description);
 
     List<Document> searchSimilar(String query, int topK, String collectionName);
 
-    String createCollection(String collectionName,String description);
+    ResponseEntity<String> createCollection(String collectionName, String description, Boolean isSystem);
 }

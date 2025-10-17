@@ -20,6 +20,9 @@ spring:
       embedding:
         options:
           model: text-embedding-v4
+      rerank:
+        options:
+          model: gte-rerank-v2
     vectorstore:
       milvus:
         client:

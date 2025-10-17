@@ -48,13 +48,14 @@ public class KnowledgeBaseController {
      */
     @PostMapping("/upload-file")
     public ResponseEntity<String> uploadFile(@RequestParam("files") MultipartFile[] files,
-                                             @RequestParam String collectionName) {
+                                             @RequestParam String collectionName,
+                                             @RequestParam(required = false) String description) {
 //
         if(files==null||files.length==0){
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("上传文件为空！");
         }
         try {
-            String result = knowledgeBaseService.loadFileByType(files,collectionName);
+            String result = knowledgeBaseService.loadFileByType(files,collectionName,description);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
              return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("文件上传失败: " + e.getMessage());
@@ -81,16 +82,13 @@ public class KnowledgeBaseController {
     }
     @PostMapping("/createCollection")
     public ResponseEntity<String> createCollection(@RequestParam String collectionName,
-                                                   @RequestParam(value = "description",required = false) String description){
+                                                   @RequestParam(value = "description",required = false) String description,
+                                                   @RequestParam(required = false) Boolean isSystem){
         if(collectionName==null||collectionName.trim().isEmpty()){
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("集合名称无效");
         }
-        try {
-            String collection = knowledgeBaseService.createCollection(collectionName, description);
-            return ResponseEntity.ok(collection);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("集合创建失败: " + e.getMessage());
-        }
+        return knowledgeBaseService.createCollection(collectionName, description,isSystem);
+
     }
 
 }

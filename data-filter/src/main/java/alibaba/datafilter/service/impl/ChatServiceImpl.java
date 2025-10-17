@@ -52,7 +52,11 @@ public class ChatServiceImpl implements ChatService {
     private final List<String> models=List.of("qwen-max","qwen-plus-latest","qwen3-max-2025-09-23","qwen3-max-preview",
             "qwen-plus-2025-07-28","qwen-turbo","Moonshot-Kimi-K2-Instruct","deepseek-r1","deepseek-v3");
 
-    public ChatServiceImpl(Function<String, MilvusVectorStore> dynamicVectorStoreFactory, MilvusVectorStoreUtils milvusVectorStoreUtils, CollectionService collectionService, DataFilterTool dataFilterTool, ResearchTool researchTool) {
+    public ChatServiceImpl(Function<String, MilvusVectorStore> dynamicVectorStoreFactory, 
+                          MilvusVectorStoreUtils milvusVectorStoreUtils, 
+                          CollectionService collectionService, 
+                          DataFilterTool dataFilterTool, 
+                          ResearchTool researchTool) {
         this.dynamicVectorStoreFactory = dynamicVectorStoreFactory;
         this.milvusVectorStoreUtils = milvusVectorStoreUtils;
         this.collectionService = collectionService;
@@ -220,9 +224,33 @@ public class ChatServiceImpl implements ChatService {
 //        如果存在则检索，返回
         MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
         List<Document> documents = vectorStore.similaritySearch(query);
+        
         StringBuilder stringBuilder = new StringBuilder();
+        // 设置相似度阈值，只返回相似度高于此值的文档
+        double similarityThreshold = 0.2;
         for (Document doc : documents) {
-            stringBuilder.append(doc.getText()).append("\n\n");
+            // 获取文档的相似度分数
+            Object similarityObj = doc.getMetadata().get("similarity");
+            Double similarityScore = null;
+            
+            // 安全地转换相似度分数
+            if (similarityObj instanceof Double) {
+                similarityScore = (Double) similarityObj;
+            } else if (similarityObj instanceof String) {
+                try {
+                    similarityScore = Double.parseDouble((String) similarityObj);
+                } catch (NumberFormatException e) {
+                    log.warn("无法解析相似度分数: {}", similarityObj);
+                }
+            }
+            log.info("相似度分数: {}", similarityScore);
+            // 只有当相似度分数大于等于阈值时才添加到结果中
+            if (similarityScore != null && similarityScore >= similarityThreshold) {
+                log.info("添加文档: {}", doc.getMetadata().get("source_description"));
+                stringBuilder.append(doc.getMetadata().getOrDefault("source_description",""))
+                             .append(doc.getText())
+                             .append("\n\n");
+            }
         }
         return stringBuilder.toString();
     }

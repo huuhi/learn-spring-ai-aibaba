@@ -127,6 +127,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 log.info("为避免token超限，截断部分文档内容");
                 break;
             }
+            log.info("知识库内容：{}", docText);
             contextBuilder.append(docText).append("\n\n");
             totalChars += docText.length();
         }
@@ -161,6 +162,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                     log.info("为避免token超限，截断部分文档内容");
                     break;
                 }
+                log.info("知识库内容：{}", docText);
                 contextBuilder.append(docText).append("\n\n");
                 totalChars += docText.length();
             }

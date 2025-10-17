@@ -1,5 +1,6 @@
 package alibaba.datafilter.config;
 
+import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import io.milvus.client.MilvusServiceClient;
 import io.milvus.param.ConnectParam;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -26,6 +27,9 @@ public class MilvusConfig {
 
     @Value("${spring.ai.vectorstore.milvus.database-name:default}")
     private String databaseName;
+
+    @Value("${spring.ai.dashscope.api-key}")
+    private String dashScopeApiKey;
 
     @Bean
     public MilvusServiceClient milvusClient() {
