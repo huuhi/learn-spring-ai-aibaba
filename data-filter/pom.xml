@@ -134,6 +134,11 @@
             <artifactId>spring-ai-alibaba-graph-core</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.github.houbb</groupId>
+            <artifactId>opencc4j</artifactId>
+            <version>1.7.0</version> <!-- 请使用最新版本 -->
+        </dependency>
     </dependencies>
 
 

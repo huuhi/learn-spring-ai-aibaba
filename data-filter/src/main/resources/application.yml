@@ -61,7 +61,8 @@ spring:
     bucket-name: spring-ai-alibaba
     region: cn-shenzhen
     endpoint: https://oss-cn-shenzhen.aliyuncs.com
-    dir: user/avatar
+    image-dir: user/avatar
+    file-dir: user/file
   servlet:
     multipart:
       max-file-size: 10MB

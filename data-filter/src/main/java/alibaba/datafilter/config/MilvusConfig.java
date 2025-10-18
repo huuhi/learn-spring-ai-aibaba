@@ -28,9 +28,6 @@ public class MilvusConfig {
     @Value("${spring.ai.vectorstore.milvus.database-name:default}")
     private String databaseName;
 
-    @Value("${spring.ai.dashscope.api-key}")
-    private String dashScopeApiKey;
-
     @Bean
     public MilvusServiceClient milvusClient() {
         ConnectParam connectParam = ConnectParam.newBuilder()

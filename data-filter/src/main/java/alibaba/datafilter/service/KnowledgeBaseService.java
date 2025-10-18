@@ -1,5 +1,7 @@
 package alibaba.datafilter.service;
 
+import alibaba.datafilter.model.dto.CreateCollectionDTO;
+import alibaba.datafilter.model.dto.UploadFileConfigDTO;
 import org.springframework.ai.document.Document;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -17,9 +19,9 @@ import java.util.List;
 public interface KnowledgeBaseService {
     Boolean insertText(String content, String collectionName);
 
-    String loadFileByType(MultipartFile[] files, String collectionName, String description);
+    String loadFileByType(MultipartFile[] files, String collectionName, String description, UploadFileConfigDTO uploadFileConfig);
 
     List<Document> searchSimilar(String query, int topK, String collectionName);
 
-    ResponseEntity<String> createCollection(String collectionName, String description, Boolean isSystem);
+    ResponseEntity<String> createCollection(CreateCollectionDTO createCollectionDTO);
 }

@@ -6,6 +6,8 @@ import alibaba.datafilter.mapper.CollectionMapper;
 import alibaba.datafilter.service.CollectionService;
 import org.springframework.stereotype.Service;
 
+import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
+
 /**
 * @author windows
 * @description 针对表【collection】的数据库操作Service实现
@@ -17,9 +19,8 @@ public class CollectionServiceImpl extends ServiceImpl<CollectionMapper, Collect
     public Boolean isContains(String collectionName) {
 //        TODO 之后需要修改用户ID
         return lambdaQuery()
-                .eq(Collection::getName, collectionName)
-                .eq(Collection::getUserId,1078833153).count() > 0;
-
+                .eq(Collection::getCollectionName, collectionName)
+                .eq(Collection::getUserId,TEMP_USER_ID).count() > 0;
     }
 
 }

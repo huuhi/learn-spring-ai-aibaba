@@ -12,6 +12,7 @@ public class AliOssProperties {
     private String endpoint;
     private String bucketName;
     private String region;
-    private String dir;
+    private String imageDir;
+    private String fileDir;
 
 }

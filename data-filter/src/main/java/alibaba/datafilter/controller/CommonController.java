@@ -27,13 +27,13 @@ public class CommonController {
     public CommonController(AliOssUtil aliOssUtil) {
         this.aliOssUtil = aliOssUtil;
     }
-    @PostMapping("/upload")
+    @PostMapping("/upload-image")
     public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file){
         //        将文件转换成为字节数组
         log.info("上传文件{}",file.getOriginalFilename());
         String upload;
         try {
-            upload = aliOssUtil.upload(file.getBytes(), Objects.requireNonNull(file.getOriginalFilename()));
+            upload = aliOssUtil.uploadImage(file.getBytes(), Objects.requireNonNull(file.getOriginalFilename()));
 //            生成随机文件名
         } catch (IOException e) {
             log.error("上传失败", e);
@@ -44,4 +44,5 @@ public class CommonController {
         }
         return ResponseEntity.ok(upload);
     }
+//    上传文件
 }

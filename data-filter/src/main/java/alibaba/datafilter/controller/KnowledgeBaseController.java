@@ -1,12 +1,17 @@
 package alibaba.datafilter.controller;
 
+import alibaba.datafilter.model.dto.CreateCollectionDTO;
+import alibaba.datafilter.model.dto.UploadFileConfigDTO;
 import alibaba.datafilter.service.KnowledgeBaseService;
+import alibaba.datafilter.service.KnowledgeFileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.document.Document;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import javax.validation.Valid;
 import java.util.List;
 
 
@@ -21,6 +26,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class KnowledgeBaseController {
     private final KnowledgeBaseService knowledgeBaseService;
+    private final KnowledgeFileService knowledgeFileService;
     /**
      *
      * @param content 插入的文本内容
@@ -46,16 +52,17 @@ public class KnowledgeBaseController {
      * @param files 上传的文件,支持上传多个
      * @return 响应体
      */
-    @PostMapping("/upload-file")
-    public ResponseEntity<String> uploadFile(@RequestParam("files") MultipartFile[] files,
-                                             @RequestParam String collectionName,
-                                             @RequestParam(required = false) String description) {
+//    TODO 这个接口需要修改成，将文件提交的知识库
+    @PostMapping("/collection-knowledge")
+    public ResponseEntity<String> Collection(@RequestParam("files") MultipartFile[] files,
+                                             @Valid UploadFileConfigDTO uploadFileConfig) {
 //
         if(files==null||files.length==0){
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("上传文件为空！");
         }
         try {
-            String result = knowledgeBaseService.loadFileByType(files,collectionName,description);
+//            TODO 这里应该修改为消息队列，或者异步处理
+            String result = knowledgeBaseService.loadFileByType(files, uploadFileConfig.getCollectionName(), uploadFileConfig.getDescription(),uploadFileConfig);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
              return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("文件上传失败: " + e.getMessage());
@@ -81,14 +88,13 @@ public class KnowledgeBaseController {
         }
     }
     @PostMapping("/createCollection")
-    public ResponseEntity<String> createCollection(@RequestParam String collectionName,
-                                                   @RequestParam(value = "description",required = false) String description,
-                                                   @RequestParam(required = false) Boolean isSystem){
-        if(collectionName==null||collectionName.trim().isEmpty()){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("集合名称无效");
-        }
-        return knowledgeBaseService.createCollection(collectionName, description,isSystem);
+    public ResponseEntity<String> createCollection(@RequestBody @Valid CreateCollectionDTO createCollectionDTO){
+        return knowledgeBaseService.createCollection(createCollectionDTO);
+    }
 
+    @PostMapping("upload-file")
+    public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile[] file){
+        return knowledgeFileService.uploadFile(file);
     }
 
 }

@@ -30,6 +30,8 @@ public class Collection implements Serializable {
      */
     private String name;
 
+    private String collectionName;
+
     /**
      * 
      */
@@ -39,6 +41,8 @@ public class Collection implements Serializable {
      * 
      */
     private Integer userId;
+
+    private String language;
 
     private Boolean isSystem;
 

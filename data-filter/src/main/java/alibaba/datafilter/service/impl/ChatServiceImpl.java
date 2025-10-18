@@ -2,6 +2,7 @@ package alibaba.datafilter.service.impl;
 
 
 import alibaba.datafilter.common.utils.MilvusVectorStoreUtils;
+import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.model.domain.ResearchPlanStep;
 import alibaba.datafilter.model.domain.ResearchQuestionDTO;
 import alibaba.datafilter.model.dto.QuestionDTO;
@@ -14,6 +15,7 @@ import alibaba.datafilter.tools.ResearchTool;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
+import com.github.houbb.opencc4j.util.ZhConverterUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -31,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static alibaba.datafilter.common.content.LanguageContent.CHINESE;
+import static alibaba.datafilter.common.content.LanguageContent.CHINESE_TW;
 import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
 
 /**
@@ -217,10 +221,22 @@ public class ChatServiceImpl implements ChatService {
 
     private String ragSearch(String query,String collectionName){
 //        TODO 判断知识库是否存在，不存在直接返回""
-        if(!milvusVectorStoreUtils.isValidCollectionName(collectionName)){
+        Collection collection = milvusVectorStoreUtils.isValidCollectionName(collectionName);
+        if(collection==null){
             log.info("知识库不存在啦！");
             return "";
         }
+//        判断语言，判断知识库是否与问题为同一种语言，目前只支持简中和繁中
+        String language = collection.getLanguage();
+        if(language.equals(CHINESE_TW)){
+//            需要将问题转换为繁体字
+//            先判断是否为简体
+            if(ZhConverterUtil.isSimple(query)){
+                query = ZhConverterUtil.toTraditional(query);
+                log.info("知识库为繁体字，将问题转换为繁体字：{}",query);
+            }
+        }
+
 //        如果存在则检索，返回
         MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
         List<Document> documents = vectorStore.similaritySearch(query);
@@ -230,7 +246,11 @@ public class ChatServiceImpl implements ChatService {
         double similarityThreshold = 0.2;
         for (Document doc : documents) {
             // 获取文档的相似度分数
-            Object similarityObj = doc.getMetadata().get("similarity");
+
+//           0-1 越高越相似，建议：0.5及以上
+            Double score = doc.getScore();
+//            越低越好 0-2 建议：小于 0.5以下
+            Object similarityObj = doc.getMetadata().get("distance");
             Double similarityScore = null;
             
             // 安全地转换相似度分数

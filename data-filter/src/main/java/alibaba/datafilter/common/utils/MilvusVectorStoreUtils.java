@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
+
 /**
  * @author 胡志坚
  * @version 1.0
@@ -48,13 +50,12 @@ public class MilvusVectorStoreUtils {
      * @param collectionName 集合名称
      * @return 是否有效
      */
-    public  boolean isValidCollectionName(String collectionName) {
+    public  Collection isValidCollectionName(String collectionName) {
 //        需要判断用户是否有这个知识库
-        Collection one = collectionService.query()
-                .eq("name", collectionName)
-                .eq("user_id", 1078833153)
+        return collectionService.lambdaQuery()
+                .eq(Collection::getCollectionName, collectionName)
+                .eq(Collection::getUserId, TEMP_USER_ID)
                 .one();
-        return one != null;
     }
     public void createIndexForCollection(String collectionName) {
         log.info("正在手动创建collection: {}", collectionName);

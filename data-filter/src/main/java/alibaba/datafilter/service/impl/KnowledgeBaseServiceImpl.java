@@ -2,12 +2,17 @@ package alibaba.datafilter.service.impl;
 
 import alibaba.datafilter.common.concurrent.UserHolder;
 import alibaba.datafilter.model.domain.Collection;
+import alibaba.datafilter.model.dto.CreateCollectionDTO;
+import alibaba.datafilter.model.dto.UploadFileConfigDTO;
 import alibaba.datafilter.model.dto.UserDTO;
 import alibaba.datafilter.service.CollectionService;
 import alibaba.datafilter.service.KnowledgeBaseService;
 import alibaba.datafilter.common.utils.MilvusVectorStoreUtils;
+import alibaba.datafilter.utils.CharacterTextSplitter;
+import cn.hutool.core.util.StrUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
@@ -25,6 +30,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.function.Function;
+
+import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
 
 /**
  * @author 胡志坚
@@ -45,7 +52,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public Boolean  insertText(String content, String collectionName) {
-        if(!milvusVectorStoreUtils.isValidCollectionName(collectionName)){
+        if(milvusVectorStoreUtils.isValidCollectionName(collectionName)==null){
             log.warn("不存在的知识库:{}",collectionName);
             return false;
         }
@@ -71,7 +78,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
 
     @Override
-    public String loadFileByType(MultipartFile[] files, String collectionName, String sourceDescription) {
+    public String loadFileByType(MultipartFile[] files, String collectionName, String sourceDescription, UploadFileConfigDTO uploadFileConfig) {
         int successes = 0;
         int failures = 0;
         MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
@@ -82,7 +89,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             milvusVectorStoreUtils.createIndexForCollection(collectionName);
         }
         for (MultipartFile file:files){
-            if(processingType(file,vectorStore,sourceDescription)){
+            if(processingType(file,vectorStore,sourceDescription,uploadFileConfig)){
                 successes++;
             }else failures++;
         }
@@ -91,8 +98,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public List<Document> searchSimilar(String query, int topK, String collectionName) {
-        boolean validCollectionName = milvusVectorStoreUtils.isValidCollectionName(collectionName);
-        if(!validCollectionName){
+        Collection collection = milvusVectorStoreUtils.isValidCollectionName(collectionName);
+        if(collection==null){
             log.warn("不存在的知识库:{}",collectionName);
             return new ArrayList<>();
         }
@@ -101,16 +108,20 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         log.info("开始搜索相似文本：query:{},topK:{}",query,topK);
         SearchRequest searchRequest = SearchRequest.builder().query(query).topK(topK).build();
 
+
         List<Document> results = vectorStore.similaritySearch(searchRequest);
 
-        assert results != null;
         log.info("相似性搜索完成，找到 {} 个相关文档", results.size());
         return results;
     }
 
     @Override
-    public ResponseEntity<String> createCollection(String collectionName, String description, Boolean isSystem) {
-        UserHolder.saveUser(new UserDTO(1078833153,"小小怪cC087z"));
+    public ResponseEntity<String> createCollection(CreateCollectionDTO createCollectionDTO) {
+        boolean isSystem = createCollectionDTO.getIsSystem();
+        String collectionName = createCollectionDTO.getCollectionName();
+        String description = createCollectionDTO.getDescription();
+        String language = createCollectionDTO.getLanguage();
+        UserHolder.saveUser(new UserDTO(TEMP_USER_ID,"小小怪cC087z"));
         //        TODO 之后要把用户ID修改为真实的用户ID
         UserDTO user = UserHolder.getUser();
         if (user==null){
@@ -120,7 +131,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 //        查看是否是系统知识库
         if(isSystem){
 //            查看是否是系统管理员
-            if(!user.getId().equals(1078833153)){
+            if(!user.getId().equals(TEMP_USER_ID)){
                 return ResponseEntity.badRequest().body("权限不足！");
             }
         }
@@ -134,9 +145,21 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             log.warn("用户已创建10个知识库，不允许创建新的知识库");
             return ResponseEntity.status(500).body("用户已创建10个知识库，不允许创建新的知识库");
         }
-        Collection.CollectionBuilder collectionBuilder = Collection.builder().name(collectionName).description(description).userId(user.getId());
+//        判断是否存在
+        if(collectionService.isContains(collectionName)){
+            log.warn("知识库已存在:{}",collectionName);
+            return ResponseEntity.status(500).body("知识库已存在");
+        }
+
+        Collection.CollectionBuilder collectionBuilder = Collection.builder().collectionName(collectionName).description(description).language(language).userId(user.getId());
         if (isSystem){
             collectionBuilder.isSystem(true);
+        }
+        String name = createCollectionDTO.getName();
+        if(!StrUtil.isBlank(name)){
+            collectionBuilder.name(name);
+        }else{
+            collectionBuilder.name(collectionName);
         }
         boolean save = collectionService.save(collectionBuilder.build());
         if(!save){
@@ -148,7 +171,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         return ResponseEntity.ok("创建成功");
     }
 
-    private Boolean processingType(MultipartFile file, MilvusVectorStore vectorStore,String sourceDescription) {
+    private Boolean processingType(MultipartFile file, MilvusVectorStore vectorStore,String sourceDescription,UploadFileConfigDTO uploadFileConfig) {
         Assert.notNull(file, "文件为空！");
         log.info("开始处理文件：fileName:{},fileSize:{}", file.getOriginalFilename(), file.getSize());
 
@@ -172,33 +195,20 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 documents = tikaReader.get();
                 log.info("使用tika处理文件：{}", fileName);
             }
+            // 2. 创建自定义的TextSplitter实例
+            CharacterTextSplitter textSplitter = new CharacterTextSplitter(uploadFileConfig.getChunkSize(), uploadFileConfig.getChunkOverlap(), Arrays.stream(uploadFileConfig.getSeparators()).toList());
 
-            // 对文档进行分块处理，避免单个文档过大导致token超限
-            TokenTextSplitter textSplitter = new TokenTextSplitter();
-            List<Document> splitDocuments = new ArrayList<>();
-            for (Document document : documents) {
-                List<Document> splits = textSplitter.apply(List.of(document));
-                for (Document split : splits) {
-                    split.getMetadata();
-                    Map<String, Object> metadata = split.getMetadata();
-                    Map<String, Object> newMetadata = new HashMap<>(metadata);
-                    newMetadata.put("source_description", sourceDescription);
-                    newMetadata.put("file_name", fileName);
+            // 3. 应用分块 (现在textSplitter.apply会返回已经处理好的所有小块)
+            List<Document> splitDocuments = textSplitter.apply(documents);
+            log.info("原始文档数:{},处理之后:{}", documents.size(), splitDocuments.size());
 
-                    Document enrichedDoc = new Document(
-                            Objects.requireNonNull(split.getText()),
-                            newMetadata
-                    );
-                    splitDocuments.add(enrichedDoc);
-                }
+            log.debug("预览处理块：{}",splitDocuments.stream().limit(10).toList());
 
-
-                splitDocuments.addAll(splits);
-            }
-            vectorStore.add(splitDocuments);
+            List<Document> finalDocuments = getDocuments(sourceDescription, splitDocuments, fileName);
+            vectorStore.add(finalDocuments);
             Files.deleteIfExists(tempFile);
             log.info("文件处理完毕：fileName:{},原始文档数:{},分割后文档数:{}",
-                    fileName, documents.size(), splitDocuments.size());
+                    fileName, documents.size(), finalDocuments.size());
             return true;
 
         } catch (IOException e) {
@@ -207,6 +217,22 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
     }
 
+    @NotNull
+    private static List<Document> getDocuments(String sourceDescription, List<Document> splitDocuments, String fileName) {
+        List<Document> finalDocuments = new ArrayList<>();
+        for (Document split : splitDocuments) {
+            Map<String, Object> newMetadata = new HashMap<>(split.getMetadata());
+            newMetadata.put("source_description", sourceDescription);
+            newMetadata.put("file_name", fileName);
+            Document enrichedDoc = new Document(
+                    split.getId(),
+                    Objects.requireNonNull(split.getText()),
+                    newMetadata
+            );
+            finalDocuments.add(enrichedDoc);
+        }
+        return finalDocuments;
+    }
 
 
 }
