@@ -5,20 +5,25 @@ import com.aliyun.oss.*;
 import com.aliyun.oss.common.auth.CredentialsProviderFactory;
 import com.aliyun.oss.common.auth.EnvironmentVariableCredentialsProvider;
 import com.aliyun.oss.common.comm.SignVersion;
+import com.aliyun.oss.model.OSSObject;
 import com.aliyuncs.exceptions.ClientException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.UUID;
 
 @Slf4j
 @Component
 public class AliOssUtil {
 
-    @Autowired
-    private AliOssProperties aliOssProperties;
+    private final AliOssProperties aliOssProperties;
+
+    public AliOssUtil(AliOssProperties aliOssProperties) {
+        this.aliOssProperties = aliOssProperties;
+    }
 
     /**
      * 图片上传
@@ -107,5 +112,39 @@ public class AliOssUtil {
         }
 
         return endpoint.split("//")[0] + "//" + bucketName + "." + endpoint.split("//")[1] + "/" + objectName;
+    }
+    
+    /**
+     * 从OSS下载文件内容
+     *
+     * @param objectName OSS中的对象名称
+     * @return 文件字节数组
+     */
+    public byte[] downloadDocument(String objectName) throws ClientException {
+        String endpoint = aliOssProperties.getEndpoint();
+        String bucketName = aliOssProperties.getBucketName();
+        String region = aliOssProperties.getRegion();
+
+        // 从环境变量中获取访问凭证
+        EnvironmentVariableCredentialsProvider credentialsProvider = CredentialsProviderFactory.newEnvironmentVariableCredentialsProvider();
+
+        ClientBuilderConfiguration clientBuilderConfiguration = new ClientBuilderConfiguration();
+        clientBuilderConfiguration.setSignatureVersion(SignVersion.V4);
+        OSS ossClient = OSSClientBuilder.create()
+                .endpoint(endpoint)
+                .credentialsProvider(credentialsProvider)
+                .clientConfiguration(clientBuilderConfiguration)
+                .region(region)
+                .build();
+
+        try {
+            OSSObject ossObject = ossClient.getObject(bucketName, objectName);
+            return ossObject.getObjectContent().readAllBytes();
+        } catch (IOException e) {
+            log.error("下载文件失败: {}", e.getMessage());
+            throw new RuntimeException("下载文件失败", e);
+        } finally {
+            ossClient.shutdown();
+        }
     }
 }

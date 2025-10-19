@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="alibaba.datafilter.mapper.CollectionFilesMapper">
+
+    <resultMap id="BaseResultMap" type="alibaba.datafilter.model.domain.CollectionFiles">
+            <id property="id" column="id" jdbcType="INTEGER"/>
+            <result property="collectionId" column="collection_id" jdbcType="INTEGER"/>
+            <result property="fileId" column="file_id" jdbcType="INTEGER"/>
+            <result property="createdAt" column="created_at" jdbcType="TIMESTAMP"/>
+            <result property="status" column="status" jdbcType="CHAR"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,collection_id,file_id,
+        created_at,status
+    </sql>
+</mapper>

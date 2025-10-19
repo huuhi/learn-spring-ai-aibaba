@@ -4,11 +4,14 @@ import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.service.impl.CollectionServiceImpl;
 import io.milvus.client.MilvusServiceClient;
 import io.milvus.grpc.DataType;
+import io.milvus.grpc.ShowCollectionsResponse;
 import io.milvus.param.ConnectParam;
 import io.milvus.param.IndexType;
 import io.milvus.param.MetricType;
+import io.milvus.param.R;
 import io.milvus.param.collection.CreateCollectionParam;
 import io.milvus.param.collection.FieldType;
+import io.milvus.param.collection.HasCollectionParam;
 import io.milvus.param.index.CreateIndexParam;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -58,13 +61,27 @@ public class MilvusVectorStoreUtils {
                 .one();
     }
     public void createIndexForCollection(String collectionName) {
-        log.info("正在手动创建collection: {}", collectionName);
         MilvusServiceClient milvusClient = new MilvusServiceClient(
                 ConnectParam.newBuilder()
                         .withHost(milvusHost)
                         .withPort(milvusPort)
                         .build()
         );
+
+        // 检查集合是否已存在
+        ShowCollectionsResponse showCollectionsResponse = milvusClient.showCollections(
+                io.milvus.param.collection.ShowCollectionsParam.newBuilder()
+                        .withDatabaseName(databaseName)
+                        .build()
+        ).getData();
+
+        if (showCollectionsResponse.getCollectionNamesList().contains(collectionName)) {
+            log.info("集合 {} 已存在，跳过创建", collectionName);
+            return;
+        }
+
+
+        log.info("正在手动创建collection: {}", collectionName);
 
         // 定义字段
         FieldType docIdField = FieldType.newBuilder()

@@ -48,21 +48,15 @@ public class KnowledgeBaseController {
     }
 
     /**
-     *  支持的文件类型：PDF，Word，Txt，Text，Markdown等文本类型
-     * @param files 上传的文件,支持上传多个
+     * @param uploadFileConfig 上传知识库配置，包括文件id等
      * @return 响应体
      */
-//    TODO 这个接口需要修改成，将文件提交的知识库
+//    TODO 这个接口需要修改成，将文件提交到知识库
     @PostMapping("/collection-knowledge")
-    public ResponseEntity<String> Collection(@RequestParam("files") MultipartFile[] files,
-                                             @Valid UploadFileConfigDTO uploadFileConfig) {
-//
-        if(files==null||files.length==0){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("上传文件为空！");
-        }
+    public ResponseEntity<String> FilesToCollection(@RequestBody @Valid UploadFileConfigDTO uploadFileConfig) {
         try {
 //            TODO 这里应该修改为消息队列，或者异步处理
-            String result = knowledgeBaseService.loadFileByType(files, uploadFileConfig.getCollectionName(), uploadFileConfig.getDescription(),uploadFileConfig);
+            String result = knowledgeBaseService.importFilesToCollection(uploadFileConfig);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
              return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("文件上传失败: " + e.getMessage());
@@ -92,9 +86,23 @@ public class KnowledgeBaseController {
         return knowledgeBaseService.createCollection(createCollectionDTO);
     }
 
+    /**
+     *
+     * @param files 上传的文件列表
+     * @return 响应体,失败返回失败信息，成功返回文件id列表
+     */
     @PostMapping("upload-file")
-    public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile[] file){
-        return knowledgeFileService.uploadFile(file);
+    public ResponseEntity<?> uploadFile(@RequestParam("files") MultipartFile[] files){
+        if(files==null||files.length==0){
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("上传文件为空！");
+        }
+        return knowledgeFileService.uploadFile(files);
     }
+//    获取所有文件列表
+    @GetMapping("get-file-list")
+    public ResponseEntity<?> getFileList(){
+        return knowledgeFileService.getFileList();
+    }
+
 
 }

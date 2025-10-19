@@ -243,29 +243,20 @@ public class ChatServiceImpl implements ChatService {
         
         StringBuilder stringBuilder = new StringBuilder();
         // 设置相似度阈值，只返回相似度高于此值的文档
-        double similarityThreshold = 0.2;
         for (Document doc : documents) {
             // 获取文档的相似度分数
 
 //           0-1 越高越相似，建议：0.5及以上
-            Double score = doc.getScore();
+            assert doc.getScore() != null;
+            double score = doc.getScore();
 //            越低越好 0-2 建议：小于 0.5以下
-            Object similarityObj = doc.getMetadata().get("distance");
-            Double similarityScore = null;
-            
-            // 安全地转换相似度分数
-            if (similarityObj instanceof Double) {
-                similarityScore = (Double) similarityObj;
-            } else if (similarityObj instanceof String) {
-                try {
-                    similarityScore = Double.parseDouble((String) similarityObj);
-                } catch (NumberFormatException e) {
-                    log.warn("无法解析相似度分数: {}", similarityObj);
-                }
-            }
-            log.info("相似度分数: {}", similarityScore);
+            double similarityScore = Double.parseDouble(doc.getMetadata().get("distance").toString());
+            log.info("距离: {}", similarityScore);
+            log.info("分数: {}", score);
             // 只有当相似度分数大于等于阈值时才添加到结果中
-            if (similarityScore != null && similarityScore >= similarityThreshold) {
+            double similarityThreshold = 0.7;
+            double scoreThreshold = 0.4;
+            if (similarityScore <= similarityThreshold||score>=scoreThreshold) {
                 log.info("添加文档: {}", doc.getMetadata().get("source_description"));
                 stringBuilder.append(doc.getMetadata().getOrDefault("source_description",""))
                              .append(doc.getText())

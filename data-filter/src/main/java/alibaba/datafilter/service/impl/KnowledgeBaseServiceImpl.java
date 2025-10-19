@@ -2,32 +2,27 @@ package alibaba.datafilter.service.impl;
 
 import alibaba.datafilter.common.concurrent.UserHolder;
 import alibaba.datafilter.model.domain.Collection;
+import alibaba.datafilter.model.domain.CollectionFiles;
 import alibaba.datafilter.model.dto.CreateCollectionDTO;
 import alibaba.datafilter.model.dto.UploadFileConfigDTO;
 import alibaba.datafilter.model.dto.UserDTO;
+import alibaba.datafilter.model.em.FileStatus;
+import alibaba.datafilter.model.vo.FileVo;
 import alibaba.datafilter.service.CollectionService;
 import alibaba.datafilter.service.KnowledgeBaseService;
 import alibaba.datafilter.common.utils.MilvusVectorStoreUtils;
-import alibaba.datafilter.utils.CharacterTextSplitter;
+import alibaba.datafilter.service.KnowledgeFileService;
 import cn.hutool.core.util.StrUtil;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
-import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.function.Function;
 
@@ -41,14 +36,14 @@ import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
-    @Resource
-    private Function<String, MilvusVectorStore> dynamicVectorStoreFactory;
-    @Resource
-    private MilvusVectorStoreUtils milvusVectorStoreUtils;
-    @Resource
-    private CollectionService collectionService;
-
+    private final Function<String, MilvusVectorStore> dynamicVectorStoreFactory;
+    private final  MilvusVectorStoreUtils milvusVectorStoreUtils;
+    private final CollectionService collectionService;
+    private final KnowledgeFileService knowledgeFileService;
+    @Autowired
+    private  AsyncFileProcessingService asyncFileProcessingService;
 
     @Override
     public Boolean  insertText(String content, String collectionName) {
@@ -78,9 +73,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
 
     @Override
-    public String loadFileByType(MultipartFile[] files, String collectionName, String sourceDescription, UploadFileConfigDTO uploadFileConfig) {
-        int successes = 0;
-        int failures = 0;
+    public String importFilesToCollection(UploadFileConfigDTO uploadFileConfig) {
+        String collectionName = uploadFileConfig.getCollectionName();
+        String sourceDescription = uploadFileConfig.getDescription();
+//        这里应该确认用户是否有这个知识库
+        Collection collection = milvusVectorStoreUtils.isValidCollectionName(collectionName);
+        if(collection==null){
+            log.warn("不存在的知识库:{}",collectionName);
+            return "不存在的知识库:"+collectionName;
+        }
+
         MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
         try {
             vectorStore.add(Collections.emptyList());
@@ -88,12 +90,33 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // 如果初始化失败，尝试手动创建索引
             milvusVectorStoreUtils.createIndexForCollection(collectionName);
         }
-        for (MultipartFile file:files){
-            if(processingType(file,vectorStore,sourceDescription,uploadFileConfig)){
-                successes++;
-            }else failures++;
+//        查找用户的文件
+        List<FileVo> fileVos = knowledgeFileService.getFileListByIds(uploadFileConfig.getFileIds());
+        if(fileVos==null||fileVos.isEmpty()){
+            log.warn("没有找到文件");
+            return "没有找到文件";
         }
-        return "成功处理"+successes+"个文件，失败"+failures+"个文件";
+
+        for (FileVo fileVo:fileVos){
+//            获取已上传的文件，将其添加到指定的知识库当中！
+            if (fileVo.getStatus().equals(FileStatus.COMPLETED)) {
+                // 处理已完成上传的文件
+                CollectionFiles.CollectionFilesBuilder collectionFilesBuilder = CollectionFiles.builder().fileId(fileVo.getId()).collectionId(collection.getId());
+                asyncFileProcessingService.processingTypeFromOss(fileVo, vectorStore, sourceDescription, uploadFileConfig,collectionFilesBuilder);
+
+
+                //                if(processingTypeFromOss(fileVo, vectorStore, sourceDescription, uploadFileConfig)){
+////                    如果处理成功，需要添加到关系表中
+//                    collectionFiles = collectionFilesBuilder.build();
+//                    successes++;
+//                }else {
+//                    collectionFiles = collectionFilesBuilder.status(FileStatus.FAILED).build();
+//                    failures++;
+//                }
+            }
+        }
+
+        return "提交成功！";
     }
 
     @Override
@@ -171,68 +194,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         return ResponseEntity.ok("创建成功");
     }
 
-    private Boolean processingType(MultipartFile file, MilvusVectorStore vectorStore,String sourceDescription,UploadFileConfigDTO uploadFileConfig) {
-        Assert.notNull(file, "文件为空！");
-        log.info("开始处理文件：fileName:{},fileSize:{}", file.getOriginalFilename(), file.getSize());
 
-        try {
-            // 创建临时文件
-            Path tempFile = Files.createTempFile("upload_", "-" + file.getOriginalFilename());
-            Files.copy(file.getInputStream(), tempFile, StandardCopyOption.REPLACE_EXISTING);
 
-            List<Document> documents;
-            String fileName = file.getOriginalFilename();
-
-            assert fileName != null;
-            if (fileName.toLowerCase().endsWith(".pdf")) {
-                // 使用pdf读取器
-                PagePdfDocumentReader pdfReader = new PagePdfDocumentReader(tempFile.toUri().toString());
-                documents = pdfReader.get();
-                log.info("使用PD处理文件：{}", fileName);
-            } else {
-                // 使用Tika处理其他类型文件
-                TikaDocumentReader tikaReader = new TikaDocumentReader(tempFile.toUri().toString());
-                documents = tikaReader.get();
-                log.info("使用tika处理文件：{}", fileName);
-            }
-            // 2. 创建自定义的TextSplitter实例
-            CharacterTextSplitter textSplitter = new CharacterTextSplitter(uploadFileConfig.getChunkSize(), uploadFileConfig.getChunkOverlap(), Arrays.stream(uploadFileConfig.getSeparators()).toList());
-
-            // 3. 应用分块 (现在textSplitter.apply会返回已经处理好的所有小块)
-            List<Document> splitDocuments = textSplitter.apply(documents);
-            log.info("原始文档数:{},处理之后:{}", documents.size(), splitDocuments.size());
-
-            log.debug("预览处理块：{}",splitDocuments.stream().limit(10).toList());
-
-            List<Document> finalDocuments = getDocuments(sourceDescription, splitDocuments, fileName);
-            vectorStore.add(finalDocuments);
-            Files.deleteIfExists(tempFile);
-            log.info("文件处理完毕：fileName:{},原始文档数:{},分割后文档数:{}",
-                    fileName, documents.size(), finalDocuments.size());
-            return true;
-
-        } catch (IOException e) {
-            log.error("文件处理失败：fileName:{},error:{}", file.getOriginalFilename(), e.getMessage());
-            return false;
-        }
-    }
-
-    @NotNull
-    private static List<Document> getDocuments(String sourceDescription, List<Document> splitDocuments, String fileName) {
-        List<Document> finalDocuments = new ArrayList<>();
-        for (Document split : splitDocuments) {
-            Map<String, Object> newMetadata = new HashMap<>(split.getMetadata());
-            newMetadata.put("source_description", sourceDescription);
-            newMetadata.put("file_name", fileName);
-            Document enrichedDoc = new Document(
-                    split.getId(),
-                    Objects.requireNonNull(split.getText()),
-                    newMetadata
-            );
-            finalDocuments.add(enrichedDoc);
-        }
-        return finalDocuments;
-    }
 
 
 }

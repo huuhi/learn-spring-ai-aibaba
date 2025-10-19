@@ -1,35 +1,25 @@
-package alibaba.datafilter.model.domain;
+package alibaba.datafilter.model.vo;
 
 import alibaba.datafilter.model.em.FileStatus;
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-
-import java.io.Serial;
-import java.io.Serializable;
-import java.util.Date;
-
-import lombok.Builder;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
+import java.util.Date;
+
 /**
- * 知识库文件信息表
- * @TableName knowledge_file
+ * @author 胡志坚
+ * @version 1.0
+ * 创造日期 2025/10/19
+ * 说明:
  */
-@TableName(value ="knowledge_file")
 @Data
-@Builder
-public class KnowledgeFile implements Serializable {
+@AllArgsConstructor
+public class FileVo {
     /**
      * 主键ID
      */
-    @TableId
     private Long id;
-
-    /**
-     * 所属用户ID
-     */
-    private Integer userId;
 
     /**
      * 原始文件名
@@ -61,17 +51,11 @@ public class KnowledgeFile implements Serializable {
      */
     private String errorMessage;
 
-    /**
-     * 成功处理后的文档块数量
-     */
-    private Integer chunkCount;
 
     /**
      * 文件上传时间
      */
     private Date uploadedAt;
 
-    @Serial
-    @TableField(exist = false)
-    private static final long serialVersionUID = 1L;
+
 }

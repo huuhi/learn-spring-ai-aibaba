@@ -7,6 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * @author 胡志坚
  * @version 1.0
@@ -18,6 +20,9 @@ import lombok.Data;
 public class UploadFileConfigDTO {
     @NotBlank
     private String collectionName;
+
+    @NotEmpty
+    private List<Long> fileIds;
     private String description;
 //    最大4000
     @NotNull

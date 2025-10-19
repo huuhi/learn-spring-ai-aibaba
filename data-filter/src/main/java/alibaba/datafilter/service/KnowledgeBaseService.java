@@ -19,7 +19,7 @@ import java.util.List;
 public interface KnowledgeBaseService {
     Boolean insertText(String content, String collectionName);
 
-    String loadFileByType(MultipartFile[] files, String collectionName, String description, UploadFileConfigDTO uploadFileConfig);
+    String importFilesToCollection( UploadFileConfigDTO uploadFileConfig);
 
     List<Document> searchSimilar(String query, int topK, String collectionName);
 
