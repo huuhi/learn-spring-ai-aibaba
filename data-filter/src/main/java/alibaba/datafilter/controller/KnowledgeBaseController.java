@@ -81,6 +81,12 @@ public class KnowledgeBaseController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("相似性搜索过程中发生错误: " + e.getMessage());
         }
     }
+
+    /**
+     *
+     * @param createCollectionDTO 创建知识库的参数
+     * @return 返回
+     */
     @PostMapping("/createCollection")
     public ResponseEntity<String> createCollection(@RequestBody @Valid CreateCollectionDTO createCollectionDTO){
         return knowledgeBaseService.createCollection(createCollectionDTO);

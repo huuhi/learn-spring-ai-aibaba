@@ -1,5 +1,6 @@
 package alibaba.datafilter.model.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -15,8 +16,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class RequestDTO {
 //    用户的问题
+    @NotBlank
     private String question;
 //    记忆ID,需要根据这个来获取历史会话
+
     private String conversationId;
 //    指定的默认，默认是qwen-plus-latest
     private String model;
@@ -26,4 +29,10 @@ public class RequestDTO {
     private Boolean enableThinking;
     // rag 知识库的名称！
     private String rag;
+
+//    自动查询知识库
+    private Boolean autoRag;
+
+    private RagSearchConfigDTO  ragSearchConfig;
+
 }

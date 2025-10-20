@@ -149,7 +149,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         UserDTO user = UserHolder.getUser();
         if (user==null){
             log.warn("用户未登录:{}", user);
-            return ResponseEntity.status(500).body("用户未登录");
+            return ResponseEntity.status(401).body("用户未登录");
         }
 //        查看是否是系统知识库
         if(isSystem){
@@ -166,12 +166,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 .count().intValue();
         if(count>=10){
             log.warn("用户已创建10个知识库，不允许创建新的知识库");
-            return ResponseEntity.status(500).body("用户已创建10个知识库，不允许创建新的知识库");
+            return ResponseEntity.status(400).body("用户已创建10个知识库，不允许创建新的知识库");
         }
+//        TODO 这里知识库名称全局只允许存在一个，之后可以考虑怎么解决这个问题
 //        判断是否存在
         if(collectionService.isContains(collectionName)){
             log.warn("知识库已存在:{}",collectionName);
-            return ResponseEntity.status(500).body("知识库已存在");
+            return ResponseEntity.status(400).body("知识库已存在");
         }
 
         Collection.CollectionBuilder collectionBuilder = Collection.builder().collectionName(collectionName).description(description).language(language).userId(user.getId());

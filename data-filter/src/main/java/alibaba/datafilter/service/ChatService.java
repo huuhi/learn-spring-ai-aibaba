@@ -1,6 +1,5 @@
 package alibaba.datafilter.service;
 
-import alibaba.datafilter.model.domain.ResearchPlanStep;
 import alibaba.datafilter.model.domain.ResearchQuestionDTO;
 import alibaba.datafilter.model.dto.QuestionDTO;
 import alibaba.datafilter.model.dto.RequestDTO;
@@ -20,8 +19,7 @@ import java.util.List;
 @Service
 public interface ChatService {
 
-//    创建会话
-    ResponseEntity<String> createConversation();
+
 
 //    聊天
     Flux<StreamResponse> chat(RequestDTO requestDTO);

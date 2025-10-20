@@ -12,6 +12,6 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class QuestionDTO {
-    private String questionId;
+    private String conversationId;
     private String question;
 }

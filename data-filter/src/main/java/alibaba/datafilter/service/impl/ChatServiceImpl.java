@@ -1,8 +1,6 @@
 package alibaba.datafilter.service.impl;
 
 
-import alibaba.datafilter.common.utils.MilvusVectorStoreUtils;
-import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.model.domain.ResearchPlanStep;
 import alibaba.datafilter.model.domain.ResearchQuestionDTO;
 import alibaba.datafilter.model.dto.QuestionDTO;
@@ -10,19 +8,20 @@ import alibaba.datafilter.model.dto.RequestDTO;
 import alibaba.datafilter.model.dto.StreamResponse;
 import alibaba.datafilter.service.ChatService;
 import alibaba.datafilter.service.CollectionService;
+import alibaba.datafilter.service.ConversationService;
 import alibaba.datafilter.tools.DataFilterTool;
+import alibaba.datafilter.tools.RagTool;
 import alibaba.datafilter.tools.ResearchTool;
+import alibaba.datafilter.utils.RagUtils;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
-import com.github.houbb.opencc4j.util.ZhConverterUtil;
 import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,10 +30,8 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-
-import static alibaba.datafilter.common.content.LanguageContent.CHINESE;
-import static alibaba.datafilter.common.content.LanguageContent.CHINESE_TW;
+import java.util.Objects;
+import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
 import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
 
 /**
@@ -45,37 +42,31 @@ import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
-    private final Function<String, MilvusVectorStore> dynamicVectorStoreFactory;
-    private final MilvusVectorStoreUtils milvusVectorStoreUtils;
     private final CollectionService collectionService;
     private final DataFilterTool dataFilterTool;
     private final ResearchTool researchTool;
+    private final RagTool ragTool;
+    private final ConversationService conversationService;
+    private final RagUtils ragUtils;
     @Resource
     private   ChatClient chatClient;
     private final List<String> models=List.of("qwen-max","qwen-plus-latest","qwen3-max-2025-09-23","qwen3-max-preview",
             "qwen-plus-2025-07-28","qwen-turbo","Moonshot-Kimi-K2-Instruct","deepseek-r1","deepseek-v3");
 
-    public ChatServiceImpl(Function<String, MilvusVectorStore> dynamicVectorStoreFactory, 
-                          MilvusVectorStoreUtils milvusVectorStoreUtils, 
-                          CollectionService collectionService, 
-                          DataFilterTool dataFilterTool, 
-                          ResearchTool researchTool) {
-        this.dynamicVectorStoreFactory = dynamicVectorStoreFactory;
-        this.milvusVectorStoreUtils = milvusVectorStoreUtils;
-        this.collectionService = collectionService;
-        this.dataFilterTool = dataFilterTool;
-        this.researchTool = researchTool;
-    }
 
-    @Override
-    public ResponseEntity<String> createConversation() {
-        String string = UUID.fastUUID().toString();
-        return ResponseEntity.ok(string);
+//    垃圾接口，直接报废！
+    public String createConversation() {
+        return UUID.fastUUID().toString();
     }
 
     @Override
     public Flux<StreamResponse> chat(RequestDTO requestDTO) {
+//        如果会话ID为null则是新会话
+        boolean isNewConversation = requestDTO.getConversationId() == null || requestDTO.getConversationId().isEmpty();
+        final String conversationId  =isNewConversation ? createConversation():requestDTO.getConversationId();
+
         DashScopeChatOptions.DashscopeChatOptionsBuilder dashscopeChatOptionsBuilder = DashScopeChatOptions.builder()
                 .withEnableSearch(requestDTO.getEnableSearch())
                 .withEnableThinking(requestDTO.getEnableThinking());
@@ -84,26 +75,39 @@ public class ChatServiceImpl implements ChatService {
         if(requestDTO.getModel()!=null&& !requestDTO.getModel().isEmpty() && models.contains(requestDTO.getModel())){
             dashscopeChatOptionsBuilder.withModel(requestDTO.getModel());
         }
-//        知识库检索的内容
+        String collectionName = requestDTO.getRag();
+//        如果是自动检索知识库
+
+//        TODO 用户id需要在线程中获取
+        //        知识库检索的内容
         String searchContent="";
 //        获取知识库名称
-        String collectionName = requestDTO.getRag();
 //       判断用户是否开启了rag检索，如果开启需要想判断知识库是否存在
 //        TODO 判断知识库是否存在，如果不存在不需要 检索。直接在数据库判断
         if(collectionName!=null&& !collectionName.isEmpty()&&collectionService.isContains(collectionName)){
-            searchContent=ragSearch(question, requestDTO.getRag());
+            searchContent=ragUtils.ragSearch(question, collectionName,requestDTO.getRagSearchConfig());
         }
-        String prompt=String.format("用户的问题:%s,知识库检索的结果:%s,注意:知识库的内容可能为空，如果为空，说明用户没有开启知识库检索或者知识库没有检索的内容，需要你直接回答用户的问题",question,searchContent);
-        Flux<ChatResponse> responseFlux = chatClient.prompt(prompt)
-                .advisors(p -> p.param(CONVERSATION_ID, requestDTO.getConversationId()))
-                .options(dashscopeChatOptionsBuilder.build())
-                .stream()
-                .chatResponse();
-        return getStreamResponseFlux(responseFlux);
+        String prompt=String.format("""
+                用户的问题:%s,知识库检索的结果:%s,注意:知识库的内容可能为空，如果为空并且提供了工具则说明，需要你自主决定调用工具获取知识库内容
+                用户的id：%s,知识库检索配置：%s
+                如知识库内容为空并且没有工具则说明：用户没有开启知识库检索或者知识库没有检索的内容，需要你直接回答用户的问题""",question,searchContent,TEMP_USER_ID,requestDTO.getRagSearchConfig());
+        ChatClient.ChatClientRequestSpec spec = chatClient.prompt(prompt)
+
+                .advisors(p -> p.param(CONVERSATION_ID,conversationId ))
+                .options(dashscopeChatOptionsBuilder.build());
+        if(collectionName==null&&requestDTO.getAutoRag()){
+//            注册一个工具给AI使用
+            spec = spec.tools(ragTool);
+            log.info("用户开启了自动检索知识库");
+        }
+        Flux<ChatResponse> responseFlux = spec.stream().chatResponse();
+        return getStreamResponseFlux(responseFlux,question,conversationId,isNewConversation);
     }
 
     @Override
     public Flux<StreamResponse> dataFilterSearch(String query, String conversationId) {
+        boolean isNewConversation = conversationId == null || conversationId.isEmpty();
+        final String isConversationId  =isNewConversation ? createConversation():conversationId;
         Flux<ChatResponse> chatResponseFlux = chatClient.prompt("""
                         你是一个智能助手，能够回答用户问题，并根据需要灵活调用工具。
                        **通用工具调用规则：** 仔细分析用户问题，如果回答需要外部信息或特定功能（如数据过滤），请调用相应的工具。
@@ -111,16 +115,18 @@ public class ChatServiceImpl implements ChatService {
                        或者为了准确回答用户问题需要**实时时间信息**（例如：“今天有什么新闻？”），而用户未提供明确的日期或时间信息时，请调用你可用的工具来获取当前时间。
                        """)
                 .options(DashScopeChatOptions.builder().withEnableThinking(true).build())
-                .advisors(p -> p.param(CONVERSATION_ID,conversationId))
+                .advisors(p -> p.param(CONVERSATION_ID,isConversationId))
                 .user(query)
                 .tools(dataFilterTool)
                 .stream()
                 .chatResponse();
-        return getStreamResponseFlux(chatResponseFlux);
+        return getStreamResponseFlux(chatResponseFlux,query , isConversationId, isNewConversation);
     }
 
     @Override
     public ResponseEntity<List<?>> developPlan(QuestionDTO question) {
+        boolean isNewConversation = question.getConversationId() == null || question.getConversationId().isEmpty();
+        final String conversationId  =isNewConversation ? createConversation(): question.getConversationId();
         ChatClient.CallResponseSpec responseSpec = chatClient.prompt("""
                         你是一位资深的领域研究专家和研究方案制定者。你的任务是根据用户提出的原始研究问题，制定一份详细、可执行、有逻辑顺序的深度研究方案。
                         请将研究方案拆解为多个独立的步骤，并以JSON数组的形式返回。每个步骤应包含以下字段：
@@ -139,7 +145,7 @@ public class ChatServiceImpl implements ChatService {
                         5.  请生成5-10个核心研究步骤，确保方案的深度和广度。
                         请直接以JSON数组格式输出，不要包含任何额外文字说明。
                         """).param("question", question.getQuestion()))
-                .advisors(p->p.param(CONVERSATION_ID,question.getQuestionId()))
+                .advisors(p->p.param(CONVERSATION_ID,conversationId))
                 .call();
 
         try {
@@ -152,6 +158,8 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public Flux<StreamResponse> research(ResearchQuestionDTO researchQuestionDTO) {
+        boolean isNewConversation = researchQuestionDTO.getConversationId() == null || researchQuestionDTO.getConversationId().isEmpty();
+        final String conversationId  =isNewConversation ? createConversation(): researchQuestionDTO.getConversationId();
         Flux<ChatResponse> chatResponseFlux = chatClient.prompt()
                 .system("""
                 你是一位专业且高效的研究助手，你的核心职责是根据提供的研究计划，**从头到尾执行所有研究步骤，并最终生成一份完整、结构化的综合研究报告。**
@@ -192,77 +200,55 @@ public class ChatServiceImpl implements ChatService {
                 .stream()
                 .chatResponse();
 //        researchQuestionDTO.getResearchPlanSteps().
-
-
-        return getStreamResponseFlux(chatResponseFlux);
+        return getStreamResponseFlux(chatResponseFlux,researchQuestionDTO.getQuestion(), conversationId, isNewConversation);
 
     }
 
     @NotNull
-    private Flux<StreamResponse> getStreamResponseFlux(Flux<ChatResponse> chatResponseFlux) {
+    private Flux<StreamResponse> getStreamResponseFlux(Flux<ChatResponse> chatResponseFlux,String question, String conversationId, boolean isNewConversation) {
+//        首先
+        StringBuilder answer=new StringBuilder();
+
         return chatResponseFlux.flatMap(chatResponse->{
             Flux<StreamResponse> eventFlux = Flux.empty();
             if(!chatResponse.getResults().isEmpty()){
                 Map<String, Object> metadata = chatResponse.getResults().get(0).getOutput().getMetadata();
+                Flux<StreamResponse> updatedEventFlux = eventFlux;
                 if(metadata.containsKey("reasoningContent")){
                     Object reasoning = metadata.get("reasoningContent");
                     if(reasoning != null && !reasoning.toString().isEmpty()){
-                        eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("THINKING", reasoning)));
+                        updatedEventFlux = updatedEventFlux.concatWith(Flux.just(new StreamResponse("THINKING", reasoning)));
                     }
                 }
                 String text = chatResponse.getResult().getOutput().getText();
                 if (text != null && !text.isEmpty()){
-                    eventFlux = eventFlux.concatWith(Flux.just(new StreamResponse("CONTENT", text)));
+                    updatedEventFlux = updatedEventFlux.concatWith(Flux.just(new StreamResponse("CONTENT", text)));
+                    answer.append(text);
                 }
+                return updatedEventFlux;
             }
             return eventFlux;
-        });
+        }).materialize()
+                .flatMap(signal->{
+                    if (signal.isOnNext()){
+                        return Flux.just(Objects.requireNonNull(signal.get()));
+                    }else if(signal.isOnComplete()&& isNewConversation && !answer.isEmpty()){
+                        Flux<StreamResponse> endEvents = Flux.just(
+                                new StreamResponse("END", "流式传输完成")
+                        );
+                        String title = conversationService.createTitle(question, answer.toString());
+                        conversationService.createConversation(title,conversationId,TEMP_USER_ID);
+                        return Flux.concat(
+                                Flux.just(new StreamResponse("TITLE", title)),
+                                Flux.just(new StreamResponse("CONVERSATION_ID", conversationId)),
+                                endEvents
+                        );
+
+                    }else if(signal.isOnComplete()){
+                        return Flux.just(new StreamResponse("END", "流式传输完成"));
+                    }
+                    return Flux.empty();
+                });
     }
 
-    private String ragSearch(String query,String collectionName){
-//        TODO 判断知识库是否存在，不存在直接返回""
-        Collection collection = milvusVectorStoreUtils.isValidCollectionName(collectionName);
-        if(collection==null){
-            log.info("知识库不存在啦！");
-            return "";
-        }
-//        判断语言，判断知识库是否与问题为同一种语言，目前只支持简中和繁中
-        String language = collection.getLanguage();
-        if(language.equals(CHINESE_TW)){
-//            需要将问题转换为繁体字
-//            先判断是否为简体
-            if(ZhConverterUtil.isSimple(query)){
-                query = ZhConverterUtil.toTraditional(query);
-                log.info("知识库为繁体字，将问题转换为繁体字：{}",query);
-            }
-        }
-
-//        如果存在则检索，返回
-        MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
-        List<Document> documents = vectorStore.similaritySearch(query);
-        
-        StringBuilder stringBuilder = new StringBuilder();
-        // 设置相似度阈值，只返回相似度高于此值的文档
-        for (Document doc : documents) {
-            // 获取文档的相似度分数
-
-//           0-1 越高越相似，建议：0.5及以上
-            assert doc.getScore() != null;
-            double score = doc.getScore();
-//            越低越好 0-2 建议：小于 0.5以下
-            double similarityScore = Double.parseDouble(doc.getMetadata().get("distance").toString());
-            log.info("距离: {}", similarityScore);
-            log.info("分数: {}", score);
-            // 只有当相似度分数大于等于阈值时才添加到结果中
-            double similarityThreshold = 0.7;
-            double scoreThreshold = 0.4;
-            if (similarityScore <= similarityThreshold||score>=scoreThreshold) {
-                log.info("添加文档: {}", doc.getMetadata().get("source_description"));
-                stringBuilder.append(doc.getMetadata().getOrDefault("source_description",""))
-                             .append(doc.getText())
-                             .append("\n\n");
-            }
-        }
-        return stringBuilder.toString();
-    }
 }
