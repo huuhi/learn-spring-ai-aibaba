@@ -67,6 +67,12 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 110MB
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: auto
+  configuration:
+    default-executor-type: batch
 logging:
   level:
     alibaba:

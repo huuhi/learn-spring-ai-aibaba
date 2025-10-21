@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识库文件上传与处理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .file-item {
+            padding: 10px;
+            border: 1px solid #eee;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        .file-item.selected {
+            background-color: #e6f7ff;
+            border-color: #1890ff;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>知识库文件上传与处理</h1>
+    
+    <!-- 文件上传部分 -->
+    <div class="section">
+        <h2>1. 上传文件</h2>
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="files">选择文件:</label>
+                <input type="file" id="files" name="files" multiple accept=".txt,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" required>
+            </div>
+            <button type="submit">上传文件</button>
+        </form>
+        <div id="uploadResult" class="result hidden"></div>
+    </div>
+    
+    <!-- 已上传文件列表 -->
+    <div class="section">
+        <h2>2. 已上传文件</h2>
+        <button id="refreshFileList">刷新文件列表</button>
+        <div id="fileList"></div>
+    </div>
+    
+    <!-- 提交到知识库部分 -->
+    <div class="section">
+        <h2>3. 提交到知识库</h2>
+        <form id="processForm">
+            <div class="form-group">
+                <label for="collectionName">知识库名称:</label>
+                <input type="text" id="collectionName" name="collectionName" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="description">描述 (可选):</label>
+                <input type="text" id="description" name="description">
+            </div>
+            
+            <div class="form-group">
+                <label for="chunkSize">块大小:</label>
+                <input type="number" id="chunkSize" name="chunkSize" value="1000" min="1" max="4000" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="chunkOverlap">重叠大小:</label>
+                <input type="number" id="chunkOverlap" name="chunkOverlap" value="200" min="0" max="800" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="separators">分隔符 (逗号分隔):</label>
+                <input type="text" id="separators" name="separators" value="\n\n,\n, ,," required>
+            </div>
+            
+            <button type="submit" id="processBtn" disabled>提交到知识库</button>
+        </form>
+        <div id="processResult" class="result hidden"></div>
+    </div>
+
+    <script>
+        // 全局变量
+        let uploadedFiles = [];
+        
+        // 处理大整数的JSON解析函数
+        function parseJsonWithBigInt(jsonString) {
+            return JSON.parse(jsonString, (key, value) => {
+                // 检查是否为可能的ID字段且数值超出安全整数范围
+                if (typeof value === 'number' && 
+                    (value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER || 
+                     (key === 'id' && value > Number.MAX_SAFE_INTEGER))) {
+                    return value.toString();
+                }
+                return value;
+            });
+        }
+        
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 绑定事件监听器
+            document.getElementById('uploadForm').addEventListener('submit', handleFileUpload);
+            document.getElementById('processForm').addEventListener('submit', handleProcessFiles);
+            document.getElementById('refreshFileList').addEventListener('click', loadFileList);
+            
+            // 初始化文件列表
+            loadFileList();
+        });
+        
+        // 处理文件上传
+        async function handleFileUpload(event) {
+            event.preventDefault();
+            
+            const formData = new FormData();
+            const files = document.getElementById('files').files;
+            
+            if (files.length === 0) {
+                showResult('uploadResult', '请选择至少一个文件', 'error');
+                return;
+            }
+            
+            // 添加文件到FormData
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+            
+            try {
+                const response = await fetch('http://localhost:9090/knowledge/upload-file', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                console.log('响应状态:', response.status);
+                console.log('响应头:', [...response.headers.entries()]);
+                
+                // 检查响应状态
+                if (response.ok) {
+                    const contentType = response.headers.get('content-type');
+                    let result;
+                    if (contentType && contentType.indexOf('application/json') !== -1) {
+                        // 对于包含大整数的JSON，使用特殊处理避免精度丢失
+                        const text = await response.text();
+                        result = parseJsonWithBigInt(text);
+                    } else {
+                        result = await response.text();
+                    }
+                    showResult('uploadResult', '文件上传成功: ' + JSON.stringify(result), 'success');
+                    // 清空文件选择框
+                    document.getElementById('uploadForm').reset();
+                    // 重新加载文件列表
+                    loadFileList();
+                } else {
+                    const errorText = await response.text();
+                    showResult('uploadResult', '上传失败: ' + errorText, 'error');
+                }
+            } catch (error) {
+                console.error('上传错误详情:', error);
+                showResult('uploadResult', '上传出错: 请检查后端服务是否正常运行且CORS配置正确', 'error');
+            }
+        }
+        
+        // 加载文件列表
+        async function loadFileList() {
+            try {
+                const response = await fetch('http://localhost:9090/knowledge/get-file-list');
+                
+                console.log('响应状态:', response.status);
+                console.log('响应头:', [...response.headers.entries()]);
+                
+                if (response.ok) {
+                    // 对于包含大整数的JSON，使用特殊处理避免精度丢失
+                    const text = await response.text();
+                    const result = parseJsonWithBigInt(text);
+                    uploadedFiles = result;
+                    renderFileList(result);
+                } else {
+                    const errorText = await response.text();
+                    showResult('fileList', '获取文件列表失败: ' + errorText, 'error');
+                }
+            } catch (error) {
+                console.error('获取文件列表错误详情:', error);
+                showResult('fileList', '获取文件列表出错: 请检查后端服务是否正常运行且CORS配置正确', 'error');
+            }
+        }
+        
+        // 渲染文件列表
+        function renderFileList(files) {
+            const fileListContainer = document.getElementById('fileList');
+            
+            if (!files || files.length === 0) {
+                fileListContainer.innerHTML = '<p>暂无已上传文件</p>';
+                document.getElementById('processBtn').disabled = true;
+                return;
+            }
+            
+            let html = '<div class="form-group"><label>选择要提交到知识库的文件:</label>';
+            
+            files.forEach(file => {
+                html += `
+                    <div class="file-item" onclick="toggleFileSelection(this, '${file.id}')">
+                        <input type="checkbox" data-file-id="${file.id}" style="margin-right: 10px;">
+                        <strong>${file.fileName}</strong> (${formatFileSize(file.fileSize)}) - 
+                        <span>状态: ${file.status}</span>
+                        ${file.errorMessage ? `<br><span style="color: red;">错误: ${file.errorMessage}</span>` : ''}
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            fileListContainer.innerHTML = html;
+            document.getElementById('processBtn').disabled = false;
+        }
+        
+        // 切换文件选择状态
+        function toggleFileSelection(element, fileId) {
+            const checkbox = element.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+            element.classList.toggle('selected', checkbox.checked);
+        }
+        
+        // 处理文件提交到知识库
+        async function handleProcessFiles(event) {
+            event.preventDefault();
+            
+            // 获取选中的文件ID
+            const selectedCheckboxes = document.querySelectorAll('#fileList input[type="checkbox"]:checked');
+            const fileIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.fileId);
+            
+            if (fileIds.length === 0) {
+                showResult('processResult', '请至少选择一个文件', 'error');
+                return;
+            }
+            
+            // 获取表单数据
+            const collectionName = document.getElementById('collectionName').value;
+            const description = document.getElementById('description').value;
+            const chunkSize = parseInt(document.getElementById('chunkSize').value);
+            const chunkOverlap = parseInt(document.getElementById('chunkOverlap').value);
+            const separators = document.getElementById('separators').value.split(',');
+            
+            if (!collectionName) {
+                showResult('processResult', '请输入知识库名称', 'error');
+                return;
+            }
+            
+            // 构造请求数据
+            const requestData = {
+                collectionName: collectionName,
+                fileIds: fileIds,
+                description: description,
+                chunkSize: chunkSize,
+                chunkOverlap: chunkOverlap,
+                separators: separators
+            };
+            
+            try {
+                const response = await fetch('http://localhost:9090/knowledge/collection-knowledge', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                console.log('响应状态:', response.status);
+                console.log('响应头:', [...response.headers.entries()]);
+                
+                const result = await response.text();
+                
+                if (response.ok) {
+                    showResult('processResult', '提交成功: ' + result, 'success');
+                } else {
+                    showResult('processResult', '提交失败: ' + result, 'error');
+                }
+            } catch (error) {
+                console.error('提交到知识库错误详情:', error);
+                showResult('processResult', '提交出错: 请检查后端服务是否正常运行且CORS配置正确', 'error');
+            }
+        }
+        
+        // 显示结果信息
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `result ${type}`;
+            element.classList.remove('hidden');
+        }
+        
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html>

@@ -12,6 +12,7 @@ import alibaba.datafilter.service.CollectionService;
 import alibaba.datafilter.service.KnowledgeBaseService;
 import alibaba.datafilter.common.utils.MilvusVectorStoreUtils;
 import alibaba.datafilter.service.KnowledgeFileService;
+import alibaba.datafilter.utils.RagUtils;
 import cn.hutool.core.util.StrUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +20,6 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
@@ -42,12 +42,12 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private final  MilvusVectorStoreUtils milvusVectorStoreUtils;
     private final CollectionService collectionService;
     private final KnowledgeFileService knowledgeFileService;
-    @Autowired
-    private  AsyncFileProcessingService asyncFileProcessingService;
-
+    private final AsyncFileProcessingService asyncFileProcessingService;
+    private final RagUtils ragUtils;
     @Override
     public Boolean  insertText(String content, String collectionName) {
-        if(milvusVectorStoreUtils.isValidCollectionName(collectionName)==null){
+        Collection collection = milvusVectorStoreUtils.isValidCollectionName(collectionName);
+        if(collection==null){
             log.warn("不存在的知识库:{}",collectionName);
             return false;
         }
@@ -60,10 +60,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             // 如果初始化失败，尝试手动创建索引
             milvusVectorStoreUtils.createIndexForCollection(collectionName);
         }
-        Document document = new Document(content);
+        List<Document> documents = ragUtils.transfer(List.of(new Document(content)),collection.getLanguage());
         // 使用TokenTextSplitter进行文本分割，控制每个片段的token数量
         TokenTextSplitter textSplitter = new TokenTextSplitter();
-        List<Document> splitDocuments = textSplitter.apply(List.of(document));
+        List<Document> splitDocuments = textSplitter.apply(documents);
 
 
         vectorStore.add(splitDocuments);
@@ -101,8 +101,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 //            获取已上传的文件，将其添加到指定的知识库当中！
             if (fileVo.getStatus().equals(FileStatus.COMPLETED)) {
                 // 处理已完成上传的文件
-                CollectionFiles.CollectionFilesBuilder collectionFilesBuilder = CollectionFiles.builder().fileId(fileVo.getId()).collectionId(collection.getId());
-                asyncFileProcessingService.processingTypeFromOss(fileVo, vectorStore, sourceDescription, uploadFileConfig,collectionFilesBuilder);
+                CollectionFiles.CollectionFilesBuilder collectionFilesBuilder = CollectionFiles.builder().fileId(Long.valueOf(fileVo.getId())).collectionId(collection.getId());
+                asyncFileProcessingService.processingTypeFromOss(fileVo, vectorStore, sourceDescription, uploadFileConfig,collectionFilesBuilder,collection.getLanguage());
 
 
                 //                if(processingTypeFromOss(fileVo, vectorStore, sourceDescription, uploadFileConfig)){
@@ -148,7 +148,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         //        TODO 之后要把用户ID修改为真实的用户ID
         UserDTO user = UserHolder.getUser();
         if (user==null){
-            log.warn("用户未登录:{}", user);
+            log.warn("用户未登录");
             return ResponseEntity.status(401).body("用户未登录");
         }
 //        查看是否是系统知识库

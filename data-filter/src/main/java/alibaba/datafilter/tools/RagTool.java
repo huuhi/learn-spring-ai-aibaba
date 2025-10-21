@@ -39,6 +39,8 @@ public class RagTool {
         }
         List<Collection> list = collectionService.lambdaQuery()
                 .eq(Collection::getUserId, userId)
+                .or()
+                .eq(Collection::getIsSystem, true)
                 .list();
         return list.stream().map(collection -> "知识库名称："+collection.getCollectionName() + "知识库介绍:" + collection.getDescription()+"知识库语言:"+collection.getLanguage()).toList().toString();
     }

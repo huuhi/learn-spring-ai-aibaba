@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.function.Function;
 
+import static alibaba.datafilter.common.content.LanguageContent.CHINESE;
 import static alibaba.datafilter.common.content.LanguageContent.CHINESE_TW;
 
 /**
@@ -83,5 +84,35 @@ public class RagUtils {
             }
         }
         return stringBuilder.toString();
+    }
+
+    /**
+     * 将文档的语言转换成知识库的语言(目前只支持简中繁中互转)
+     * @param documents  文档
+     * @param language 知识库的语言
+     * @return 转换后的文档
+     */
+    public List<Document> transfer(List<Document> documents,String language){
+//        先判断是否为null,防止空指针异常
+        if (documents!=null) {
+//            如果前20个字符是简中并且目标语言是中文繁体，则进行转换
+            if (ZhConverterUtil.isSimple(documents.get(0).getText()) && language.equals(CHINESE_TW)) {
+                return documents.stream().map(document -> {
+                    String text = document.getText();
+                    text = ZhConverterUtil.toTraditional(text);
+                    return new Document(document.getId(), text, document.getMetadata());
+                }).toList();
+//                如果前20个字符是中文繁体并且目标语言是简体中文，则进行转换
+            } else if (ZhConverterUtil.isTraditional(documents.get(0).getText()) && language.equals(CHINESE)) {
+                return documents.stream().map(document -> {
+                    String text = document.getText();
+                    text = ZhConverterUtil.toSimple(text);
+                    return new Document(document.getId(), text, document.getMetadata());
+                }).toList();
+            }
+//            TODO 更多语言转换逻辑
+            return documents;
+        }
+        return List.of();
     }
 }

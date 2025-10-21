@@ -19,7 +19,7 @@ public class FileVo {
     /**
      * 主键ID
      */
-    private Long id;
+    private String id;
 
     /**
      * 原始文件名

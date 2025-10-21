@@ -14,7 +14,6 @@ import alibaba.datafilter.tools.RagTool;
 import alibaba.datafilter.tools.ResearchTool;
 import alibaba.datafilter.utils.RagUtils;
 import cn.hutool.core.lang.UUID;
-import cn.hutool.json.JSONUtil;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
@@ -88,11 +87,13 @@ public class ChatServiceImpl implements ChatService {
             searchContent=ragUtils.ragSearch(question, collectionName,requestDTO.getRagSearchConfig());
         }
         String prompt=String.format("""
-                用户的问题:%s,知识库检索的结果:%s,注意:知识库的内容可能为空，如果为空并且提供了工具则说明，需要你自主决定调用工具获取知识库内容
+                你是一个智能的AI小助手
+                知识库检索的结果:%s,注意:知识库的内容可能为空，如果为空并且提供了工具则说明，需要你自主决定调用工具获取知识库内容
                 用户的id：%s,知识库检索配置：%s
-                如知识库内容为空并且没有工具则说明：用户没有开启知识库检索或者知识库没有检索的内容，需要你直接回答用户的问题""",question,searchContent,TEMP_USER_ID,requestDTO.getRagSearchConfig());
-        ChatClient.ChatClientRequestSpec spec = chatClient.prompt(prompt)
-
+                如知识库内容为空并且没有工具则说明：用户没有开启知识库检索或者知识库没有检索的内容，需要你直接回答用户的问题""",searchContent,TEMP_USER_ID,requestDTO.getRagSearchConfig());
+        ChatClient.ChatClientRequestSpec spec = chatClient.prompt()
+                .system(prompt)
+                .user(question)
                 .advisors(p -> p.param(CONVERSATION_ID,conversationId ))
                 .options(dashscopeChatOptionsBuilder.build());
         if(collectionName==null&&requestDTO.getAutoRag()){
@@ -108,13 +109,14 @@ public class ChatServiceImpl implements ChatService {
     public Flux<StreamResponse> dataFilterSearch(String query, String conversationId) {
         boolean isNewConversation = conversationId == null || conversationId.isEmpty();
         final String isConversationId  =isNewConversation ? createConversation():conversationId;
-        Flux<ChatResponse> chatResponseFlux = chatClient.prompt("""
+        Flux<ChatResponse> chatResponseFlux = chatClient.prompt()
+                .system("""
                         你是一个智能助手，能够回答用户问题，并根据需要灵活调用工具。
                        **通用工具调用规则：** 仔细分析用户问题，如果回答需要外部信息或特定功能（如数据过滤），请调用相应的工具。
                        **关于时间工具的特殊规则：** 如果用户的问题涉及**当前日期、时间**（例如：“现在几点？”、“今天是什么日子？”、“当前时间？”），
                        或者为了准确回答用户问题需要**实时时间信息**（例如：“今天有什么新闻？”），而用户未提供明确的日期或时间信息时，请调用你可用的工具来获取当前时间。
                        """)
-                .options(DashScopeChatOptions.builder().withEnableThinking(true).build())
+//                .options(DashScopeChatOptions.builder().withEnableThinking(true).build())
                 .advisors(p -> p.param(CONVERSATION_ID,isConversationId))
                 .user(query)
                 .tools(dataFilterTool)
@@ -127,8 +129,9 @@ public class ChatServiceImpl implements ChatService {
     public ResponseEntity<List<?>> developPlan(QuestionDTO question) {
         boolean isNewConversation = question.getConversationId() == null || question.getConversationId().isEmpty();
         final String conversationId  =isNewConversation ? createConversation(): question.getConversationId();
-        ChatClient.CallResponseSpec responseSpec = chatClient.prompt("""
-                        你是一位资深的领域研究专家和研究方案制定者。你的任务是根据用户提出的原始研究问题，制定一份详细、可执行、有逻辑顺序的深度研究方案。
+        ChatClient.CallResponseSpec responseSpec = chatClient.prompt()
+                .system("""
+                         你是一位资深的领域研究专家和研究方案制定者。你的任务是根据用户提出的原始研究问题，制定一份详细、可执行、有逻辑顺序的深度研究方案。
                         请将研究方案拆解为多个独立的步骤，并以JSON数组的形式返回。每个步骤应包含以下字段：
                         - `id`: 字符串类型，为该步骤生成的唯一标识符（例如："step-1"）。
                         - `priority`: 整数类型，表示该步骤在整体研究中的执行顺序（1为最高优先级）。
@@ -136,15 +139,7 @@ public class ChatServiceImpl implements ChatService {
                         - `description`: 字符串类型，详细说明该步骤的目的、需要完成的具体任务和需要关注的重点。
                         - `expectedOutcome`: 字符串类型，明确该步骤完成后应该得到什么具体的结果、信息或产出。
                         """)
-                .user(u -> u.text("""
-                        用户的原始问题：{question}
-                        要求：
-                        1.  研究方案应全面覆盖原始问题的各个方面，体现深度研究的特点，而不仅仅是表层搜索。
-                        2.  步骤之间应有清晰的逻辑顺序和依赖关系（通过priority体现），确保前一步骤的结果能为后一步骤提供支撑。
-                        3.  每个步骤的`description`和`expectedOutcome`要足够具体，能够指导后续的搜索和分析工作，并能够作为判断步骤是否完成的依据。
-                        5.  请生成5-10个核心研究步骤，确保方案的深度和广度。
-                        请直接以JSON数组格式输出，不要包含任何额外文字说明。
-                        """).param("question", question.getQuestion()))
+                .user(u -> u.text(question.getQuestion()))
                 .advisors(p->p.param(CONVERSATION_ID,conversationId))
                 .call();
 
@@ -170,30 +165,8 @@ public class ChatServiceImpl implements ChatService {
                             4.  **综合撰写：** 在所有研究步骤和信息收集完成后，将所有获取的信息进行逻辑整合，并**立即**开始撰写最终的研究报告。
                             5.  **质量要求：** 确保研究结果与对应的步骤完全匹配，报告内容清晰、逻辑性强，直接回答原始研究问题，并达到预期的深度和广度。
                 """)
-                .user(u ->
-                        u.text("""
-                    **核心任务：** 你将作为一名研究专家，根据以下提供的研究计划执行所有研究活动，并直接产出最终的综合研究报告。你的本次响应**必须是**这份报告的开始部分或其主要内容，而不仅仅是关于任务进展的描述。
-                      **原始研究问题：**
-                      {question}
-                      **研究计划（JSON格式）：**
-                      {researchPlanStepsJson}
-                      **你的职责与详细执行流程：**
-                      1.  **解析研究计划：** 深入理解研究计划中的每个步骤，明确其具体要求和预期产出。
-                      2.  **工具执行（必要时）：** 对于需要外部数据支持的步骤，你必须主动、准确地调用 `researchTool` 工具来执行。
-                          *   请确保在调用工具时，参数 `search_key` 和 `data` 被正确填充。
-                          *   **切勿仅仅描述你将要调用工具，而是要实际执行调用并获取结果。**
-                      3.  **信息整合与分析：** 在所有研究步骤（包括所有 `researchTool` 调用）完成后，将所有收集到的信息进行全面、系统的整合、分析和总结。
-                      4.  **撰写最终研究报告（立即开始）：** 基于整合分析后的所有研究成果，你必须**立即开始撰写**最终的研究报告。
-                          *   **报告目标：** 报告应直接回应并深入探讨原始研究问题，全面覆盖研究计划中的所有步骤内容。
-                          *   **报告结构：** 请提供一个清晰的报告结构（例如，引言、背景、研究方法、各研究步骤的详细发现、讨论、结论等）。
-                          *   **字数指导：** 最终研究报告的期望字数在 10000-30000 字之间。**不要等待或声明，请直接开始报告内容。**
-                          *   **禁止中间声明：** 在所有研究步骤完成后，请勿再进行任何“我已完成研究，现在将开始撰写报告”之类的中间性说明。你的输出必须直接是报告内容。
-
-                      **重要提示：**
-                      -   严格遵循上述流程，先完成所有工具调用和数据收集，再进行报告撰写。
-                      -   你的本次输出的唯一目的是生成研究报告的内容。
-                    """).param("question", researchQuestionDTO.getQuestion())
-                                .param("researchPlanStepsJson", JSONUtil.toJsonStr(researchQuestionDTO.getResearchPlanSteps())))
+//                存储多个数据，长度可变
+                .user(researchQuestionDTO.getResearchPlanSteps().toString())
                 .advisors(p -> p.param(CONVERSATION_ID, researchQuestionDTO.getConversationId()))
                 .options(DashScopeChatOptions.builder().withEnableThinking(true).build())
                 .tools(researchTool)

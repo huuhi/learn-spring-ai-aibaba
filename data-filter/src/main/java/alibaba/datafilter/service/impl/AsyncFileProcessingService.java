@@ -7,7 +7,9 @@ import alibaba.datafilter.model.em.FileStatus;
 import alibaba.datafilter.model.vo.FileVo;
 import alibaba.datafilter.service.CollectionFilesService;
 import alibaba.datafilter.utils.CharacterTextSplitter;
+import alibaba.datafilter.utils.RagUtils;
 import com.aliyuncs.exceptions.ClientException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.document.Document;
@@ -33,19 +35,24 @@ import java.util.*;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class AsyncFileProcessingService {
     private final AliOssUtil aliOssUtil;
     private final CollectionFilesService collectionFilesService;
-
-    public AsyncFileProcessingService(AliOssUtil aliOssUtil, CollectionFilesService collectionFilesService) {
-        this.aliOssUtil = aliOssUtil;
-        this.collectionFilesService = collectionFilesService;
-    }
-
-    @Async()
-    public void processingTypeFromOss(FileVo fileVo, MilvusVectorStore vectorStore, String sourceDescription, UploadFileConfigDTO uploadFileConfig, CollectionFiles.CollectionFilesBuilder collectionFilesBuilder) {
+    private final RagUtils ragUtils;
+    /**
+     * 异步处理OSS文件
+     * @param fileVo 文件信息
+     * @param vectorStore 向量存储
+     * @param sourceDescription 源描述
+     * @param uploadFileConfig 上传文件配置
+     * @param collectionFilesBuilder 集合文件构建器
+     * @param language 知识库的语言
+     */
+    @Async
+    public void processingTypeFromOss(FileVo fileVo, MilvusVectorStore vectorStore, String sourceDescription, UploadFileConfigDTO uploadFileConfig, CollectionFiles.CollectionFilesBuilder collectionFilesBuilder, String language) {
         log.info("开始处理OSS文件：fileName:{},fileSize:{}", fileVo.getFileName(), fileVo.getFileSize());
-        CollectionFiles collectionFiles = null;
+        CollectionFiles collectionFiles;
         try {
             // 从OSS下载文件到临时文件
             Path tempFile = Files.createTempFile("upload_", "-" + fileVo.getFileName());
@@ -69,7 +76,8 @@ public class AsyncFileProcessingService {
                 documents = tikaReader.get();
                 log.info("使用tika处理文件：{}", fileName);
             }
-
+//            查看是否需要转换
+            documents=ragUtils.transfer(documents,language);
             // 2. 创建自定义的TextSplitter实例
             CharacterTextSplitter textSplitter = new CharacterTextSplitter(uploadFileConfig.getChunkSize(), uploadFileConfig.getChunkOverlap(), Arrays.stream(uploadFileConfig.getSeparators()).toList());
 
