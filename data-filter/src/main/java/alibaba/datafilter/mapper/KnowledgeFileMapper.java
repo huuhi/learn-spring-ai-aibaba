@@ -2,6 +2,10 @@ package alibaba.datafilter.mapper;
 
 import alibaba.datafilter.model.domain.KnowledgeFile;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 /**
 * @author windows
@@ -11,6 +15,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 */
 public interface KnowledgeFileMapper extends BaseMapper<KnowledgeFile> {
 
+    int saveBatchAutoStatus(@Param("knowledgeFiles") List<KnowledgeFile> knowledgeFiles);
 }
 
 

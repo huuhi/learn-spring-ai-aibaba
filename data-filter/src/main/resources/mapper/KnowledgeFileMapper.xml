@@ -16,11 +16,11 @@
             <result property="chunkCount" column="chunk_count" jdbcType="INTEGER"/>
             <result property="uploadedAt" column="uploaded_at" jdbcType="TIMESTAMP"/>
     </resultMap>
-
-    <sql id="Base_Column_List">
-        id,user_id,file_name,
-        file_size,file_type,oss_key,
-        status,error_message,chunk_count,
-        uploaded_at
-    </sql>
+    <insert id="saveBatchAutoStatus" parameterType="list">
+        INSERT INTO knowledge_file (user_id, file_name, file_size, file_type, oss_key, status, error_message)
+        VALUES
+        <foreach collection="knowledgeFiles"  item="file" separator=",">
+            (#{file.userId}, #{file.fileName}, #{file.fileSize}, #{file.fileType}, #{file.ossKey}, CAST(#{file.status} AS status), #{file.errorMessage})
+        </foreach>
+    </insert>
 </mapper>

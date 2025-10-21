@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static alibaba.datafilter.common.content.LanguageContent.CHINESE;
 import static alibaba.datafilter.common.content.LanguageContent.CHINESE_TW;
@@ -99,6 +100,7 @@ public class RagUtils {
             if (ZhConverterUtil.isSimple(documents.get(0).getText()) && language.equals(CHINESE_TW)) {
                 return documents.stream().map(document -> {
                     String text = document.getText();
+                    log.info("文档为简体中文，将文档转换为繁体中文：{}",text);
                     text = ZhConverterUtil.toTraditional(text);
                     return new Document(document.getId(), text, document.getMetadata());
                 }).toList();
@@ -107,6 +109,7 @@ public class RagUtils {
                 return documents.stream().map(document -> {
                     String text = document.getText();
                     text = ZhConverterUtil.toSimple(text);
+                    log.info("文档为中文繁体字，将文档转换为简体中文：{}",text);
                     return new Document(document.getId(), text, document.getMetadata());
                 }).toList();
             }
@@ -114,5 +117,28 @@ public class RagUtils {
             return documents;
         }
         return List.of();
+    }
+
+    // 在需要删除文件的地方添加以下逻辑
+    public void deleteDocumentsByFileId(MilvusVectorStore vectorStore, String fileId) {
+        // 1. 构造搜索请求，使用过滤表达式查找指定file_id的文档
+        SearchRequest searchRequest = SearchRequest.builder()
+                .query("") // 空查询，因为我们只关心过滤
+                .filterExpression("file_id == '" + fileId + "'") // 根据file_id过滤
+                .build();
+
+        // 2. 执行搜索获取文档列表
+        List<Document> documents = vectorStore.similaritySearch(searchRequest);
+
+        // 3. 提取文档ID列表
+        List<String> documentIds = documents.stream()
+                .map(Document::getId)
+                .collect(Collectors.toList());
+
+        // 4. 删除这些文档
+        if (!documentIds.isEmpty()) {
+            vectorStore.delete(documentIds);
+            log.info("已从知识库中删除 {} 个与文件ID {} 相关的文档", documentIds.size(), fileId);
+        }
     }
 }

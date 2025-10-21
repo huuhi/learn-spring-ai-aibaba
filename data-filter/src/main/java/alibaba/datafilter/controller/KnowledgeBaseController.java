@@ -29,6 +29,7 @@ import java.util.List;
 public class KnowledgeBaseController {
     private final KnowledgeBaseService knowledgeBaseService;
     private final KnowledgeFileService knowledgeFileService;
+
     /**
      *
      * @param content 插入的文本内容
@@ -111,6 +112,12 @@ public class KnowledgeBaseController {
     public ResponseEntity<?> getFileList(){
         return knowledgeFileService.getFileList();
     }
-
+    @DeleteMapping("delete/{id}")
+    public ResponseEntity<String> deleteFile(@PathVariable(name = "id") Long[] ids){
+        if(ids==null||ids.length==0){
+            return ResponseEntity.badRequest().body("非法文件id");
+        }
+        return knowledgeFileService.deleteFiles(ids);
+    }
 
 }

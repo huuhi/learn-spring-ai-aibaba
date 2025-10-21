@@ -11,5 +11,5 @@ import org.springframework.stereotype.Service;
 */
 @Service
 public interface CollectionService extends IService<Collection> {
-    Boolean isContains(String collectionName);
+    Collection isContains(String collectionName);
 }

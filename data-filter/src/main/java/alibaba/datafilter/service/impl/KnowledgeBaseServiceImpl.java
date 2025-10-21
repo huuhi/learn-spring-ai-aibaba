@@ -170,7 +170,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
 //        TODO 这里知识库名称全局只允许存在一个，之后可以考虑怎么解决这个问题
 //        判断是否存在
-        if(collectionService.isContains(collectionName)){
+        if(collectionService.isContains(collectionName)!=null){
             log.warn("知识库已存在:{}",collectionName);
             return ResponseEntity.status(400).body("知识库已存在");
         }

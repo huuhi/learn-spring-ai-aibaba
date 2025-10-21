@@ -9,11 +9,7 @@
             <result property="collectionId" column="collection_id" jdbcType="INTEGER"/>
             <result property="fileId" column="file_id" jdbcType="INTEGER"/>
             <result property="createdAt" column="created_at" jdbcType="TIMESTAMP"/>
-            <result property="status" column="status" jdbcType="CHAR"/>
+            <result property="status" column="status" jdbcType="VARCHAR"/>
     </resultMap>
 
-    <sql id="Base_Column_List">
-        id,collection_id,file_id,
-        created_at,status
-    </sql>
 </mapper>

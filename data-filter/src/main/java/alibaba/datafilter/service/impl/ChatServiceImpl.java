@@ -83,7 +83,7 @@ public class ChatServiceImpl implements ChatService {
 //        获取知识库名称
 //       判断用户是否开启了rag检索，如果开启需要想判断知识库是否存在
 //        TODO 判断知识库是否存在，如果不存在不需要 检索。直接在数据库判断
-        if(collectionName!=null&& !collectionName.isEmpty()&&collectionService.isContains(collectionName)){
+        if(collectionName!=null&& !collectionName.isEmpty()&&collectionService.isContains(collectionName)!=null){
             searchContent=ragUtils.ragSearch(question, collectionName,requestDTO.getRagSearchConfig());
         }
         String prompt=String.format("""

@@ -2,12 +2,12 @@ package alibaba.datafilter.service.impl;
 
 import alibaba.datafilter.common.utils.AliOssUtil;
 import alibaba.datafilter.common.utils.FileTypeUtils;
+import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.model.domain.CollectionFiles;
-import alibaba.datafilter.model.dto.UploadFileConfigDTO;
 import alibaba.datafilter.model.em.FileStatus;
 import alibaba.datafilter.model.vo.FileVo;
 import alibaba.datafilter.service.CollectionFilesService;
-import alibaba.datafilter.utils.CharacterTextSplitter;
+import alibaba.datafilter.service.CollectionService;
 import cn.hutool.core.bean.BeanUtil;
 import com.aliyuncs.exceptions.ClientException;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -16,6 +16,7 @@ import alibaba.datafilter.service.KnowledgeFileService;
 import alibaba.datafilter.mapper.KnowledgeFileMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
 
@@ -38,6 +40,10 @@ import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
 public class KnowledgeFileServiceImpl extends ServiceImpl<KnowledgeFileMapper, KnowledgeFile>
     implements KnowledgeFileService{
     private final AliOssUtil aliOssUtil;
+    private final CollectionFilesService collectionFilesService;
+    private final CollectionService collectionService;
+    private final Function<String, MilvusVectorStore> dynamicVectorStoreFactory;
+    private final KnowledgeFileMapper knowledgeFileMapper;
 
 
 //    TODO 之后可以考虑加一个用户文件上限
@@ -95,7 +101,7 @@ public class KnowledgeFileServiceImpl extends ServiceImpl<KnowledgeFileMapper, K
         if (knowledgeFiles.isEmpty()) {
             return ResponseEntity.badRequest().body("请上传文件并且上传正确的文件类型");
         }
-        if (saveBatch(knowledgeFiles)) {
+        if (knowledgeFileMapper.saveBatchAutoStatus(knowledgeFiles)>0) {
 //            获取ID
             return ResponseEntity.ok(knowledgeFiles.stream().map(KnowledgeFile::getId).toList());
         }
@@ -113,6 +119,36 @@ public class KnowledgeFileServiceImpl extends ServiceImpl<KnowledgeFileMapper, K
         return getFileList(ids);
     }
 
+    @Override
+    @Transactional
+    public ResponseEntity<String> deleteFiles(Long[] ids) {
+        List<KnowledgeFile> list = lambdaQuery()
+                .in(KnowledgeFile::getId, List.of(ids))
+                .eq(KnowledgeFile::getUserId, TEMP_USER_ID)
+                .list();
+//        获取要删除的文件id
+        List<Long> fileIds = list.stream().map(KnowledgeFile::getId).toList();
+
+//        获取文件列表，准备删除，
+//        删除文件之前先获取文件关联的知识库，先将知识库中的数据删除，再删除关联信息，最后删除文件
+        List<CollectionFiles> collectionFiles = collectionFilesService.lambdaQuery()
+                .in(CollectionFiles::getFileId, fileIds)
+                .list();
+//        需要获取关联知识库的id
+        collectionFiles.forEach(c->{
+            Long fileId = c.getFileId();
+            Integer collectionId = c.getCollectionId();
+//            获取集合名
+            String collectionName = collectionService.lambdaQuery()
+                    .eq(Collection::getId, collectionId)
+                    .one().getCollectionName();
+            MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
+            vectorStore.delete("file_id == '" + fileId + "'");
+//            ragUtils.deleteDocumentsByFileId(vectorStore, fileId.toString());
+        });
+        return removeBatchByIds(fileIds)?ResponseEntity.ok("删除成功") : ResponseEntity.badRequest().body("删除失败");
+
+    }
 
     private List<FileVo> getFileList(List<Long> ids) {
 //        TODO 之后要从线程中获取用户的id

@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://${DOCKER_IP}:5432/data_filter
+    url: jdbc:postgresql://${DOCKER_IP}:5432/data_filter?reWriteBatchedInserts=true
     password: postgres
     username: postgres
     hikari:
@@ -73,6 +73,7 @@ mybatis-plus:
       id-type: auto
   configuration:
     default-executor-type: batch
+  type-handlers-package: alibaba.datafilter.config
 logging:
   level:
     alibaba:

@@ -44,6 +44,7 @@ public class CollectionFiles implements Serializable {
     /**
      * PENDING, PROCESSING, COMPLETED, FAILED
      */
+    @TableField(value = "status")
     private FileStatus status;
 
     @Serial

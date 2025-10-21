@@ -12,9 +12,7 @@
             <result property="avatar" column="avatar" jdbcType="VARCHAR"/>
             <result property="createAt" column="create_at" jdbcType="TIMESTAMP"/>
     </resultMap>
-
-    <sql id="Base_Column_List">
-        id,name,email,
-        password,avatar,create_at
-    </sql>
+    <select id="findByUsername" resultType="alibaba.datafilter.model.domain.User">
+        select * from users where name = #{username}
+    </select>
 </mapper>

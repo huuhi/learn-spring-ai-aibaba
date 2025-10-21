@@ -1,6 +1,7 @@
 package alibaba.datafilter.service.impl;
 
 import alibaba.datafilter.common.utils.AliOssUtil;
+import alibaba.datafilter.mapper.CollectionFilesMapper;
 import alibaba.datafilter.model.domain.CollectionFiles;
 import alibaba.datafilter.model.dto.UploadFileConfigDTO;
 import alibaba.datafilter.model.em.FileStatus;
@@ -27,6 +28,7 @@ import java.nio.file.Path;
 import java.util.*;
 
 
+
 /**
  * @author 胡志坚
  * @version 1.0
@@ -40,6 +42,7 @@ public class AsyncFileProcessingService {
     private final AliOssUtil aliOssUtil;
     private final CollectionFilesService collectionFilesService;
     private final RagUtils ragUtils;
+    private final CollectionFilesMapper collectionFilesMapper;
     /**
      * 异步处理OSS文件
      * @param fileVo 文件信息
@@ -87,7 +90,7 @@ public class AsyncFileProcessingService {
 
             log.debug("预览处理块：{}",splitDocuments.stream().limit(10).toList());
 
-            List<Document> finalDocuments = getDocuments(sourceDescription, splitDocuments, fileName);
+            List<Document> finalDocuments = getDocuments(sourceDescription, splitDocuments, fileName,fileVo.getId());
             vectorStore.add(finalDocuments);
             Files.deleteIfExists(tempFile);
             log.info("文件处理完毕：fileName:{},原始文档数:{},分割后文档数:{}",
@@ -107,16 +110,17 @@ public class AsyncFileProcessingService {
         
         // 保存处理结果
         if (collectionFiles != null) {
-            collectionFilesService.save(collectionFiles);
+            collectionFilesMapper.saveAutoStatus(collectionFiles);
         }
     }
     @NotNull
-    public static List<Document> getDocuments(String sourceDescription, List<Document> splitDocuments, String fileName) {
+    public static List<Document> getDocuments(String sourceDescription, List<Document> splitDocuments, String fileName, String id) {
         List<Document> finalDocuments = new ArrayList<>();
         for (Document split : splitDocuments) {
             Map<String, Object> newMetadata = new HashMap<>(split.getMetadata());
             newMetadata.put("source_description", sourceDescription);
             newMetadata.put("file_name", fileName);
+            newMetadata.put("file_id",id);
             Document enrichedDoc = new Document(
                     split.getId(),
                     Objects.requireNonNull(split.getText()),
@@ -147,4 +151,7 @@ public class AsyncFileProcessingService {
             return ossUrl;
         }
     }
+
+
+
 }
