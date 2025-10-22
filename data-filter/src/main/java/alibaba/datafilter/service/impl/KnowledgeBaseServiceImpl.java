@@ -26,6 +26,7 @@ import org.springframework.util.Assert;
 import java.util.*;
 import java.util.function.Function;
 
+import static alibaba.datafilter.common.content.LanguageContent.LANGUAGE_LIST;
 import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
 
 /**
@@ -151,6 +152,11 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             log.warn("用户未登录");
             return ResponseEntity.status(401).body("用户未登录");
         }
+//        如果语言不支持
+        if(language!=null&&!LANGUAGE_LIST.contains(language)){
+            return ResponseEntity.badRequest().body("不支持的语言!");
+        }
+
 //        查看是否是系统知识库
         if(isSystem){
 //            查看是否是系统管理员

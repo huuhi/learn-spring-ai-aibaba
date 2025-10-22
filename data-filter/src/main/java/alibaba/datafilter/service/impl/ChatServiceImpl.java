@@ -12,6 +12,7 @@ import alibaba.datafilter.service.ConversationService;
 import alibaba.datafilter.tools.DataFilterTool;
 import alibaba.datafilter.tools.RagTool;
 import alibaba.datafilter.tools.ResearchTool;
+import alibaba.datafilter.tools.YtDlpHelper;
 import alibaba.datafilter.utils.RagUtils;
 import cn.hutool.core.lang.UUID;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
@@ -49,6 +50,7 @@ public class ChatServiceImpl implements ChatService {
     private final RagTool ragTool;
     private final ConversationService conversationService;
     private final RagUtils ragUtils;
+    private final YtDlpHelper YtDleTool;
     @Resource
     private   ChatClient chatClient;
     private final List<String> models=List.of("qwen-max","qwen-plus-latest","qwen3-max-2025-09-23","qwen3-max-preview",
@@ -88,6 +90,7 @@ public class ChatServiceImpl implements ChatService {
         }
         String prompt=String.format("""
                 你是一个智能的AI小助手
+                你可以按需使用系统提供的工具，如果工具需要使用浏览器，默认使用edge
                 知识库检索的结果:%s,注意:知识库的内容可能为空，如果为空并且提供了工具则说明，需要你自主决定调用工具获取知识库内容
                 用户的id：%s,知识库检索配置：%s
                 如知识库内容为空并且没有工具则说明：用户没有开启知识库检索或者知识库没有检索的内容，需要你直接回答用户的问题""",searchContent,TEMP_USER_ID,requestDTO.getRagSearchConfig());
@@ -95,6 +98,7 @@ public class ChatServiceImpl implements ChatService {
                 .system(prompt)
                 .user(question)
                 .advisors(p -> p.param(CONVERSATION_ID,conversationId ))
+                .tools(YtDleTool)
                 .options(dashscopeChatOptionsBuilder.build());
         if(collectionName==null&&requestDTO.getAutoRag()){
 //            注册一个工具给AI使用

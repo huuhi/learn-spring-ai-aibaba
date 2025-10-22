@@ -101,11 +101,9 @@ public class KnowledgeFileServiceImpl extends ServiceImpl<KnowledgeFileMapper, K
         if (knowledgeFiles.isEmpty()) {
             return ResponseEntity.badRequest().body("请上传文件并且上传正确的文件类型");
         }
-        if (knowledgeFileMapper.saveBatchAutoStatus(knowledgeFiles)>0) {
+        knowledgeFileMapper.saveBatchAutoStatus(knowledgeFiles);
 //            获取ID
-            return ResponseEntity.ok(knowledgeFiles.stream().map(KnowledgeFile::getId).toList());
-        }
-        return ResponseEntity.badRequest().body("上传失败");
+        return ResponseEntity.ok(knowledgeFiles.stream().map(KnowledgeFile::getId).toList());
     }
 
     @Override

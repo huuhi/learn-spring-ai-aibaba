@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static alibaba.datafilter.common.content.LanguageContent.CHINESE;
 import static alibaba.datafilter.common.content.LanguageContent.CHINESE_TW;
@@ -95,50 +94,81 @@ public class RagUtils {
      */
     public List<Document> transfer(List<Document> documents,String language){
 //        先判断是否为null,防止空指针异常
-        if (documents!=null) {
+        if (documents == null || documents.isEmpty()) {
+            return List.of();
+        }
 //            如果前20个字符是简中并且目标语言是中文繁体，则进行转换
-            if (ZhConverterUtil.isSimple(documents.get(0).getText()) && language.equals(CHINESE_TW)) {
-                return documents.stream().map(document -> {
-                    String text = document.getText();
-                    log.info("文档为简体中文，将文档转换为繁体中文：{}",text);
+        if (language.equals(CHINESE_TW)) {
+            log.info("知识库为中文繁体字，查看是否需要转换");
+            return documents.stream().map(document -> {
+                String text = document.getText();
+                if (text!=null&&isSimpleChinese(text)) {
+                    log.info("文档为简体中文，将文档转换为繁体中文");
                     text = ZhConverterUtil.toTraditional(text);
-                    return new Document(document.getId(), text, document.getMetadata());
-                }).toList();
+                }
+                assert text != null;
+                return new Document(document.getId(), text, document.getMetadata());
+            }).toList();
 //                如果前20个字符是中文繁体并且目标语言是简体中文，则进行转换
-            } else if (ZhConverterUtil.isTraditional(documents.get(0).getText()) && language.equals(CHINESE)) {
-                return documents.stream().map(document -> {
-                    String text = document.getText();
-                    text = ZhConverterUtil.toSimple(text);
+        } else if (language.equals(CHINESE)) {
+            log.info("知识库为中文简体字，查看是否需要转换");
+            return documents.stream().map(document -> {
+                String text = document.getText();
+                if (text!=null&&isTraditionalChinese(text)) {
                     log.info("文档为中文繁体字，将文档转换为简体中文：{}",text);
-                    return new Document(document.getId(), text, document.getMetadata());
-                }).toList();
-            }
+                }
+                assert text != null;
+                return new Document(document.getId(), text, document.getMetadata());
+            }).toList();
+        }
 //            TODO 更多语言转换逻辑
-            return documents;
-        }
-        return List.of();
+        return documents;
     }
 
-    // 在需要删除文件的地方添加以下逻辑
-    public void deleteDocumentsByFileId(MilvusVectorStore vectorStore, String fileId) {
-        // 1. 构造搜索请求，使用过滤表达式查找指定file_id的文档
-        SearchRequest searchRequest = SearchRequest.builder()
-                .query("") // 空查询，因为我们只关心过滤
-                .filterExpression("file_id == '" + fileId + "'") // 根据file_id过滤
-                .build();
-
-        // 2. 执行搜索获取文档列表
-        List<Document> documents = vectorStore.similaritySearch(searchRequest);
-
-        // 3. 提取文档ID列表
-        List<String> documentIds = documents.stream()
-                .map(Document::getId)
-                .collect(Collectors.toList());
-
-        // 4. 删除这些文档
-        if (!documentIds.isEmpty()) {
-            vectorStore.delete(documentIds);
-            log.info("已从知识库中删除 {} 个与文件ID {} 相关的文档", documentIds.size(), fileId);
-        }
+    /**
+     * 判断文本是否为简体中文（预处理文本后再判断）
+     * @param text 原始文本
+     * @return 是否为简体中文
+     */
+    private boolean isSimpleChinese(String text) {
+        // 提取前100个非空白字符进行判断，避免换行符等影响
+        String processedText = extractChineseCharacters(text);
+        log.info("判断文本是否为简体中文：{}",processedText);
+        return !processedText.isEmpty() && ZhConverterUtil.isSimple(processedText);
     }
+
+    /**
+     * 判断文本是否为繁体中文（预处理文本后再判断）
+     * @param text 原始文本
+     * @return 是否为繁体中文
+     */
+    private boolean isTraditionalChinese(String text) {
+        // 提取前100个非空白字符进行判断，避免换行符等影响
+        String processedText = extractChineseCharacters(text);
+        log.info("判断文本是否为繁体中文,{}",processedText);
+        return !processedText.isEmpty() && ZhConverterUtil.isTraditional(processedText);
+    }
+
+    /**
+     * 从文本中提取指定数量的中文字符，忽略空白字符和非中文字符
+     *
+     * @param text 原始文本
+     * @return 提取的中文字符
+     */
+    private String extractChineseCharacters(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < text.length() && sb.length() < 50; i++) {
+            char c = text.charAt(i);
+            // 判断是否为中文字符（基本汉字范围）
+            if (c >= 0x4E00 && c <= 0x9FFF) {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
 }

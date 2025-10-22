@@ -80,13 +80,16 @@ public class AsyncFileProcessingService {
                 log.info("使用tika处理文件：{}", fileName);
             }
 //            查看是否需要转换
-            documents=ragUtils.transfer(documents,language);
+//            documents=ragUtils.transfer(documents,language);
             // 2. 创建自定义的TextSplitter实例
             CharacterTextSplitter textSplitter = new CharacterTextSplitter(uploadFileConfig.getChunkSize(), uploadFileConfig.getChunkOverlap(), Arrays.stream(uploadFileConfig.getSeparators()).toList());
 
             // 3. 应用分块 (现在textSplitter.apply会返回已经处理好的所有小块)
             List<Document> splitDocuments = textSplitter.apply(documents);
             log.info("原始文档数:{},处理之后:{}", documents.size(), splitDocuments.size());
+            log.debug("查看是否需要转换语言,知识库语言:{}",language);
+            splitDocuments=ragUtils.transfer(splitDocuments,language);
+
 
             log.debug("预览处理块：{}",splitDocuments.stream().limit(10).toList());
 

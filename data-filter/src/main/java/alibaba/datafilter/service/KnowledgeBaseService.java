@@ -5,7 +5,6 @@ import alibaba.datafilter.model.dto.UploadFileConfigDTO;
 import org.springframework.ai.document.Document;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
