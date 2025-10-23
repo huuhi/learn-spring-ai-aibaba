@@ -27,9 +27,5 @@ public class RagSearchConfigDTO {
     @Max(value = 1,message = "score不能大于1")
     @NotNull
     private Double score=0.5;
-    @Max(value = 0,message = "instance不能大于1")
-    @Max(value = 2,message = "instance不能大于2")
-    @NotNull
-    private Double instance=0.6;
 
 }

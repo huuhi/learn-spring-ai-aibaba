@@ -27,13 +27,19 @@ import static alibaba.datafilter.common.content.LanguageContent.CHINESE_TW;
 public class RagUtils {
     private final MilvusVectorStoreUtils milvusVectorStoreUtils;
     private final Function<String, MilvusVectorStore> dynamicVectorStoreFactory;
-
+    private static final String prefix="ID_";
     public RagUtils(MilvusVectorStoreUtils milvusVectorStoreUtils, Function<String, MilvusVectorStore> dynamicVectorStoreFactory) {
         this.milvusVectorStoreUtils = milvusVectorStoreUtils;
         this.dynamicVectorStoreFactory = dynamicVectorStoreFactory;
     }
 
+    public static String getCollectionName(Integer userId,String collectionName){
+        return prefix+userId+"_"+collectionName;
+    }
 
+    public MilvusVectorStore getVectorStore(String collectionName) {
+        return dynamicVectorStoreFactory.apply(collectionName);
+    }
     public String ragSearch(String query, String collectionName,RagSearchConfigDTO ragSearchConfigDTO){
 //        TODO 判断知识库是否存在，不存在直接返回""
         Collection collection = milvusVectorStoreUtils.isValidCollectionName(collectionName);
@@ -55,13 +61,12 @@ public class RagUtils {
         MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
 
         SearchRequest searchRequest= SearchRequest.builder().query(query).topK(5).build();
-        double similarityThreshold = 0.6;
-        double scoreThreshold = 0.4;
+        double scoreThreshold = 0.5;
         StringBuilder stringBuilder = new StringBuilder();
+//        MultiQueryExpander.builder()
         if(ragSearchConfigDTO!=null){
             searchRequest= SearchRequest.builder().query(query).topK(ragSearchConfigDTO.getTopK()).build();
 
-            similarityThreshold=ragSearchConfigDTO.getInstance();
             scoreThreshold= ragSearchConfigDTO.getScore();
         }
         List<Document> documents = vectorStore.similaritySearch(searchRequest);
@@ -73,11 +78,10 @@ public class RagUtils {
             assert doc.getScore() != null;
             double score = doc.getScore();
 //            越低越好 0-2 建议：小于 0.5以下
-            double similarityScore = Double.parseDouble(doc.getMetadata().get("distance").toString());
             // 只有当相似度分数大于等于阈值时才添加到结果中
-            if (similarityScore <= similarityThreshold||score>=scoreThreshold) {
+            if (score>=scoreThreshold) {
                 assert doc.getText() != null;
-                log.info("距离：{}，分数：{} 添加文档: {}", score,similarityScore,doc.getText().substring(0, 20));
+                log.info("分数：{} 添加文档: {}", score,doc.getText().substring(0, 20));
                 stringBuilder.append(doc.getMetadata().getOrDefault("source_description",""))
                         .append(doc.getText())
                         .append("\n\n");
@@ -124,6 +128,7 @@ public class RagUtils {
 //            TODO 更多语言转换逻辑
         return documents;
     }
+
 
     /**
      * 判断文本是否为简体中文（预处理文本后再判断）

@@ -1,6 +1,7 @@
 package alibaba.datafilter.service.impl;
 
 
+import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.model.domain.ResearchPlanStep;
 import alibaba.datafilter.model.domain.ResearchQuestionDTO;
 import alibaba.datafilter.model.dto.QuestionDTO;
@@ -16,12 +17,17 @@ import alibaba.datafilter.tools.YtDlpHelper;
 import alibaba.datafilter.utils.RagUtils;
 import cn.hutool.core.lang.UUID;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
-import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.rag.preretrieval.query.expansion.MultiQueryExpander;
+import org.springframework.ai.rag.preretrieval.query.transformation.RewriteQueryTransformer;
+import org.springframework.ai.rag.preretrieval.query.transformation.TranslationQueryTransformer;
+import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
+import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +37,7 @@ import reactor.core.publisher.Flux;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
 import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
 import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
 
@@ -49,10 +56,11 @@ public class ChatServiceImpl implements ChatService {
     private final ResearchTool researchTool;
     private final RagTool ragTool;
     private final ConversationService conversationService;
-    private final RagUtils ragUtils;
     private final YtDlpHelper YtDleTool;
-    @Resource
-    private   ChatClient chatClient;
+    private final  ChatClient chatClient;
+    private final ChatClient.Builder chatClientBuilder;
+    private final RagUtils ragUtils;
+//    private final Function<String, MilvusVectorStore> vectorStoreFactory;
     private final List<String> models=List.of("qwen-max","qwen-plus-latest","qwen3-max-2025-09-23","qwen3-max-preview",
             "qwen-plus-2025-07-28","qwen-turbo","Moonshot-Kimi-K2-Instruct","deepseek-r1","deepseek-v3");
 
@@ -76,30 +84,69 @@ public class ChatServiceImpl implements ChatService {
         if(requestDTO.getModel()!=null&& !requestDTO.getModel().isEmpty() && models.contains(requestDTO.getModel())){
             dashscopeChatOptionsBuilder.withModel(requestDTO.getModel());
         }
-        String collectionName = requestDTO.getRag();
-//        如果是自动检索知识库
-
-//        TODO 用户id需要在线程中获取
-        //        知识库检索的内容
-        String searchContent="";
 //        获取知识库名称
-//       判断用户是否开启了rag检索，如果开启需要想判断知识库是否存在
+        String collectionName = requestDTO.getRag();
+//        TODO 用户id需要在线程中获取
 //        TODO 判断知识库是否存在，如果不存在不需要 检索。直接在数据库判断
-        if(collectionName!=null&& !collectionName.isEmpty()&&collectionService.isContains(collectionName)!=null){
-            searchContent=ragUtils.ragSearch(question, collectionName,requestDTO.getRagSearchConfig());
-        }
+
         String prompt=String.format("""
-                你是一个智能的AI小助手
-                你可以按需使用系统提供的工具，如果工具需要使用浏览器，默认使用edge
-                知识库检索的结果:%s,注意:知识库的内容可能为空，如果为空并且提供了工具则说明，需要你自主决定调用工具获取知识库内容
-                用户的id：%s,知识库检索配置：%s
-                如知识库内容为空并且没有工具则说明：用户没有开启知识库检索或者知识库没有检索的内容，需要你直接回答用户的问题""",searchContent,TEMP_USER_ID,requestDTO.getRagSearchConfig());
+            你是我的智能伙伴，我们需要进行自然、有温度的对话。请根据问题类型自动调整回答风格。
+            **核心原则：**
+            1. **智能风格切换** - 根据问题类型自动调整语气和深度
+            2. **保持人性化** - 即使技术问题也要有温度，避免机械感
+            3. **提供真实价值** - 不仅要给答案，还要给洞察和理解
+
+            **风格指南：**
+            - **生活记录类**（如日常回顾、个人事务）
+              → 像朋友一样交流，有关怀有见解，使用自然分段和适当emoji
+
+            - **技术问题类**（如编程、工具使用）
+              → 专业但不死板，用易懂的语言解释复杂概念，可以分享实用技巧
+
+            - **知识科普类**（如历史、科学）
+              → 生动有趣，善用比喻和例子，让知识变得有吸引力
+
+            - **创意建议类**（如策划、决策）
+              → 启发思考，提供多角度视角，鼓励探索可能性
+
+            **格式要求：**
+            - 根据内容重要性自然分段，不要僵化的编号
+            - 可适当使用**加粗**、*斜体*等简单标记增强可读性
+            - 完全避免“首先、其次、然后”这样的刻板结构
+
+            **关于我的信息：** %s
+            **知识库配置：** %s
+
+            记住：你的目标是成为让人愿意持续交流的智能伙伴，而不是冰冷的问答机器。
+            """,TEMP_USER_ID,requestDTO.getRagSearchConfig());
         ChatClient.ChatClientRequestSpec spec = chatClient.prompt()
                 .system(prompt)
                 .user(question)
                 .advisors(p -> p.param(CONVERSATION_ID,conversationId ))
                 .tools(YtDleTool)
                 .options(dashscopeChatOptionsBuilder.build());
+        Collection collection = collectionService.isContains(collectionName);
+        if(collectionName!=null&& !collectionName.isEmpty()&&collection!=null){
+//            使用SpringAI提供的增强检索
+            log.info("使用SpringAI提供的增强检索");
+//            获取矢量数据库
+            MilvusVectorStore vectorStore = ragUtils.getVectorStore(RagUtils.getCollectionName(TEMP_USER_ID,collectionName));
+//            翻译，将问题转换为知识库的语言
+            TranslationQueryTransformer queryTransformer = TranslationQueryTransformer.builder().targetLanguage(collection.getLanguage()).chatClientBuilder(chatClientBuilder).build();
+//          变体能从不同角度或方面覆盖原始查询的主题，从而增加检索到相关结果的机会
+            MultiQueryExpander queryExpander = MultiQueryExpander.builder().chatClientBuilder(chatClientBuilder).build();
+//            重写用户查询
+            RewriteQueryTransformer rewriteQueryTransformer = RewriteQueryTransformer.builder().chatClientBuilder(chatClientBuilder).build();
+            RetrievalAugmentationAdvisor retrievalAugmentationAdvisor = RetrievalAugmentationAdvisor.builder()
+                    .queryTransformers(List.of(queryTransformer,rewriteQueryTransformer))
+                    .queryExpander(queryExpander)
+                    .documentRetriever(VectorStoreDocumentRetriever.builder()
+                            .vectorStore(vectorStore)
+                            .build())
+                    .build();
+            spec=spec.advisors(retrievalAugmentationAdvisor);
+        }
+//       判断用户是否开启了rag检索，如果开启需要先判断知识库是否存在
         if(collectionName==null&&requestDTO.getAutoRag()){
 //            注册一个工具给AI使用
             spec = spec.tools(ragTool);

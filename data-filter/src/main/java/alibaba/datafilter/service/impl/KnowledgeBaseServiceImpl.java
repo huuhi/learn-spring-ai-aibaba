@@ -84,7 +84,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             return "不存在的知识库:"+collectionName;
         }
 
-        MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
+        MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(RagUtils.getCollectionName(TEMP_USER_ID,collectionName));
         try {
             vectorStore.add(Collections.emptyList());
         } catch (Exception e) {
@@ -127,7 +127,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             log.warn("不存在的知识库:{}",collectionName);
             return new ArrayList<>();
         }
-        MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
+        MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(RagUtils.getCollectionName(TEMP_USER_ID,collectionName));
         Assert.hasText(query,"查询不能为空");
         log.info("开始搜索相似文本：query:{},topK:{}",query,topK);
         SearchRequest searchRequest = SearchRequest.builder().query(query).topK(topK).build();
@@ -174,9 +174,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             log.warn("用户已创建10个知识库，不允许创建新的知识库");
             return ResponseEntity.status(400).body("用户已创建10个知识库，不允许创建新的知识库");
         }
-//        TODO 这里知识库名称全局只允许存在一个，之后可以考虑怎么解决这个问题
+//         这里知识库名称全局只允许存在一个，之后可以考虑怎么解决这个问题:解决办法：在知识库名称前面加用户的id
 //        判断是否存在
-        if(collectionService.isContains(collectionName)!=null){
+        Collection collection = collectionService.lambdaQuery()
+                .eq(Collection::getCollectionName, collectionName)
+                .eq(Collection::getUserId, user.getId())
+                .one();
+        if(collection!=null){
             log.warn("知识库已存在:{}",collectionName);
             return ResponseEntity.status(400).body("知识库已存在");
         }
@@ -196,13 +200,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             log.warn("创建知识库失败");
             return  ResponseEntity.status(500).body("创建知识库失败");
         }
-//        这里直接创建知识库
-        milvusVectorStoreUtils.createIndexForCollection(collectionName);
+//        这里直接创建知识库 前缀为用户的id
+//        TODO 用户id需要从登录用户中获取
+        milvusVectorStoreUtils.createIndexForCollection(RagUtils.getCollectionName(user.getId(),collectionName));
         return ResponseEntity.ok("创建成功");
     }
-
-
-
-
 
 }

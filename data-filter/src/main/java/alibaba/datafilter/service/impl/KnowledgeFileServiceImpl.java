@@ -102,8 +102,16 @@ public class KnowledgeFileServiceImpl extends ServiceImpl<KnowledgeFileMapper, K
             return ResponseEntity.badRequest().body("请上传文件并且上传正确的文件类型");
         }
         knowledgeFileMapper.saveBatchAutoStatus(knowledgeFiles);
+        
+        // 插入后重新查询获取ID
+        List<KnowledgeFile> savedFiles = lambdaQuery()
+                .in(KnowledgeFile::getOssKey, knowledgeFiles.stream().map(KnowledgeFile::getOssKey).toList())
+                .eq(KnowledgeFile::getUserId, userId)
+                .orderByDesc(KnowledgeFile::getId)
+                .last("LIMIT " + knowledgeFiles.size())
+                .list();
 //            获取ID
-        return ResponseEntity.ok(knowledgeFiles.stream().map(KnowledgeFile::getId).toList());
+        return ResponseEntity.ok(savedFiles.stream().map(KnowledgeFile::getId).toList());
     }
 
     @Override
