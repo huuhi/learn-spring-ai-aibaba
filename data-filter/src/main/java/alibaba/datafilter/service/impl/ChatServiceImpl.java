@@ -14,6 +14,7 @@ import alibaba.datafilter.tools.DataFilterTool;
 import alibaba.datafilter.tools.RagTool;
 import alibaba.datafilter.tools.ResearchTool;
 import alibaba.datafilter.tools.YtDlpHelper;
+import alibaba.datafilter.utils.PolicyMakingUtils;
 import alibaba.datafilter.utils.RagUtils;
 import cn.hutool.core.lang.UUID;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
@@ -60,7 +61,6 @@ public class ChatServiceImpl implements ChatService {
     private final  ChatClient chatClient;
     private final ChatClient.Builder chatClientBuilder;
     private final RagUtils ragUtils;
-//    private final Function<String, MilvusVectorStore> vectorStoreFactory;
     private final List<String> models=List.of("qwen-max","qwen-plus-latest","qwen3-max-2025-09-23","qwen3-max-preview",
             "qwen-plus-2025-07-28","qwen-turbo","Moonshot-Kimi-K2-Instruct","deepseek-r1","deepseek-v3");
 
@@ -88,37 +88,11 @@ public class ChatServiceImpl implements ChatService {
         String collectionName = requestDTO.getRag();
 //        TODO 用户id需要在线程中获取
 //        TODO 判断知识库是否存在，如果不存在不需要 检索。直接在数据库判断
+        PolicyMakingUtils policyMakingUtils = new PolicyMakingUtils(chatClientBuilder);
+        String prompt = policyMakingUtils.getPrompt(question);
 
-        String prompt=String.format("""
-            你是我的智能伙伴，我们需要进行自然、有温度的对话。请根据问题类型自动调整回答风格。
-            **核心原则：**
-            1. **智能风格切换** - 根据问题类型自动调整语气和深度
-            2. **保持人性化** - 即使技术问题也要有温度，避免机械感
-            3. **提供真实价值** - 不仅要给答案，还要给洞察和理解
-
-            **风格指南：**
-            - **生活记录类**（如日常回顾、个人事务）
-              → 像朋友一样交流，有关怀有见解，使用自然分段和适当emoji
-
-            - **技术问题类**（如编程、工具使用）
-              → 专业但不死板，用易懂的语言解释复杂概念，可以分享实用技巧
-
-            - **知识科普类**（如历史、科学）
-              → 生动有趣，善用比喻和例子，让知识变得有吸引力
-
-            - **创意建议类**（如策划、决策）
-              → 启发思考，提供多角度视角，鼓励探索可能性
-
-            **格式要求：**
-            - 根据内容重要性自然分段，不要僵化的编号
-            - 可适当使用**加粗**、*斜体*等简单标记增强可读性
-            - 完全避免“首先、其次、然后”这样的刻板结构
-
-            **关于我的信息：** %s
-            **知识库配置：** %s
-
-            记住：你的目标是成为让人愿意持续交流的智能伙伴，而不是冰冷的问答机器。
-            """,TEMP_USER_ID,requestDTO.getRagSearchConfig());
+        prompt=String.format(prompt,TEMP_USER_ID,requestDTO.getRagSearchConfig());
+        log.info("prompt:{}",prompt);
         ChatClient.ChatClientRequestSpec spec = chatClient.prompt()
                 .system(prompt)
                 .user(question)

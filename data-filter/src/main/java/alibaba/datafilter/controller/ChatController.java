@@ -6,6 +6,7 @@ import alibaba.datafilter.model.dto.QuestionDTO;
 import alibaba.datafilter.model.dto.RequestDTO;
 import alibaba.datafilter.model.dto.StreamResponse;
 import alibaba.datafilter.service.ChatService;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.messages.Message;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +47,7 @@ public class ChatController {
 //    }
 //    获取聊天记录
     @GetMapping("/messages")
-    public List<Message> messages(@RequestParam String conversationId) {
+    public List<Message> messages(@RequestParam @NotBlank String conversationId) {
         return messageWindowChatMemory.get(conversationId);
     }
     @PostMapping(value="/data-filter",produces = "text/event-stream;charset=UTF-8")
