@@ -139,6 +139,11 @@
             <artifactId>opencc4j</artifactId>
             <version>1.7.0</version> <!-- 请使用最新版本 -->
         </dependency>
+<!--        MCP客户端-->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-client</artifactId>
+        </dependency>
     </dependencies>
 
 

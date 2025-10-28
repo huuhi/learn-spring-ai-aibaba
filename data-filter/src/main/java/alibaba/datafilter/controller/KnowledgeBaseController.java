@@ -1,7 +1,9 @@
 package alibaba.datafilter.controller;
 
+import alibaba.datafilter.exception.ResourceNotFoundException;
 import alibaba.datafilter.model.dto.CreateCollectionDTO;
 import alibaba.datafilter.model.dto.UploadFileConfigDTO;
+import alibaba.datafilter.model.vo.FileVo;
 import alibaba.datafilter.service.KnowledgeBaseService;
 import alibaba.datafilter.service.KnowledgeFileService;
 import lombok.RequiredArgsConstructor;
@@ -42,28 +44,19 @@ public class KnowledgeBaseController {
         if(content==null||content.trim().isEmpty()||collectionName==null||collectionName.trim().isEmpty()){
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("文本内容无效或者知识库为空");
         }
-
-        Boolean success = knowledgeBaseService.insertText(content, collectionName);
-        if(success){
-            return ResponseEntity.ok("插入成功");
-        }
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("插入文本内容失败");
+        knowledgeBaseService.insertText(content, collectionName);
+        return ResponseEntity.ok("插入成功");
     }
 
     /**
      * @param uploadFileConfig 上传知识库配置，包括文件id等
      * @return 响应体
      */
-//    TODO 这个接口需要修改成，将文件提交到知识库
     @PostMapping("/collection-knowledge")
     public ResponseEntity<String> FilesToCollection(@RequestBody @Valid UploadFileConfigDTO uploadFileConfig) {
-        try {
-//            TODO 这里应该修改为消息队列，或者异步处理
-            String result = knowledgeBaseService.importFilesToCollection(uploadFileConfig);
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("文件上传失败: " + e.getMessage());
-        }
+//            这里应该修改为消息队列，或者异步处理，已修改成异步处理
+        knowledgeBaseService.importFilesToCollection(uploadFileConfig);
+        return ResponseEntity.ok("导入成功,正在处理中！");
     }
 
 
@@ -92,7 +85,8 @@ public class KnowledgeBaseController {
      */
     @PostMapping("/createCollection")
     public ResponseEntity<String> createCollection(@RequestBody @Valid CreateCollectionDTO createCollectionDTO){
-        return knowledgeBaseService.createCollection(createCollectionDTO);
+        knowledgeBaseService.createCollection(createCollectionDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).body("创建成功");
     }
 
     /**
@@ -101,23 +95,31 @@ public class KnowledgeBaseController {
      * @return 响应体,失败返回失败信息，成功返回文件id列表
      */
     @PostMapping("upload-file")
-    public ResponseEntity<?> uploadFile(@RequestParam("files") MultipartFile[] files){
+    public ResponseEntity<List<Long>> uploadFile(@RequestParam("files") MultipartFile[] files){
         if(files==null||files.length==0){
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("上传文件为空！");
+            throw new ResourceNotFoundException("上传的文件不能为空!");
         }
-        return knowledgeFileService.uploadFile(files);
+        List<Long> ids = knowledgeFileService.uploadFile(files);
+        return ResponseEntity.ok(ids);
     }
 //    获取所有文件列表
     @GetMapping("get-file-list")
-    public ResponseEntity<?> getFileList(){
-        return knowledgeFileService.getFileList();
+    public ResponseEntity<List<FileVo>> getFileList(){
+        List<FileVo> fileList = knowledgeFileService.getFileList();
+        return ResponseEntity.ok(fileList);
     }
     @DeleteMapping("delete/{id}")
     public ResponseEntity<String> deleteFile(@PathVariable(name = "id") Long[] ids){
         if(ids==null||ids.length==0){
             return ResponseEntity.badRequest().body("非法文件id");
         }
-        return knowledgeFileService.deleteFiles(ids);
+        knowledgeFileService.deleteFiles(ids);
+        return ResponseEntity.ok("删除成功");
+    }
+
+    @GetMapping("get-collection")
+    public List<?> getCollection(){
+        return knowledgeBaseService.getCollection();
     }
 
 }

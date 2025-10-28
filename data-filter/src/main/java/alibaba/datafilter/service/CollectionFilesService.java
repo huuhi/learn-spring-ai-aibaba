@@ -2,7 +2,6 @@ package alibaba.datafilter.service;
 
 import alibaba.datafilter.model.domain.CollectionFiles;
 import com.baomidou.mybatisplus.extension.service.IService;
-import org.springframework.http.ResponseEntity;
 
 /**
 * @author windows

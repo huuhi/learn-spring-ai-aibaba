@@ -1,18 +1,24 @@
 package alibaba.datafilter.service.impl;
 
 import alibaba.datafilter.common.concurrent.UserHolder;
+import alibaba.datafilter.exception.PermissionDeniedException;
+import alibaba.datafilter.exception.ResourceConflictException;
+import alibaba.datafilter.exception.UnauthorizedException;
+import alibaba.datafilter.exception.ValidationException;
 import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.model.domain.CollectionFiles;
 import alibaba.datafilter.model.dto.CreateCollectionDTO;
 import alibaba.datafilter.model.dto.UploadFileConfigDTO;
 import alibaba.datafilter.model.dto.UserDTO;
 import alibaba.datafilter.model.em.FileStatus;
+import alibaba.datafilter.model.vo.CollectionVO;
 import alibaba.datafilter.model.vo.FileVo;
 import alibaba.datafilter.service.CollectionService;
 import alibaba.datafilter.service.KnowledgeBaseService;
 import alibaba.datafilter.common.utils.MilvusVectorStoreUtils;
 import alibaba.datafilter.service.KnowledgeFileService;
 import alibaba.datafilter.utils.RagUtils;
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +26,6 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 import java.util.*;
@@ -46,11 +51,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private final AsyncFileProcessingService asyncFileProcessingService;
     private final RagUtils ragUtils;
     @Override
-    public Boolean  insertText(String content, String collectionName) {
+    public void  insertText(String content, String collectionName) {
         Collection collection = milvusVectorStoreUtils.isValidCollectionName(collectionName);
         if(collection==null){
-            log.warn("不存在的知识库:{}",collectionName);
-            return false;
+            throw new ResourceConflictException("不存在的知识库！");
         }
 
         MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(collectionName);
@@ -66,22 +70,20 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         TokenTextSplitter textSplitter = new TokenTextSplitter();
         List<Document> splitDocuments = textSplitter.apply(documents);
 
-
         vectorStore.add(splitDocuments);
-        return true;
     }
 
 
 
     @Override
-    public String importFilesToCollection(UploadFileConfigDTO uploadFileConfig) {
+    public void importFilesToCollection(UploadFileConfigDTO uploadFileConfig) {
         String collectionName = uploadFileConfig.getCollectionName();
         String sourceDescription = uploadFileConfig.getDescription();
 //        这里应该确认用户是否有这个知识库
         Collection collection = milvusVectorStoreUtils.isValidCollectionName(collectionName);
         if(collection==null){
             log.warn("不存在的知识库:{}",collectionName);
-            return "不存在的知识库:"+collectionName;
+            throw new ResourceConflictException("不存在知识库");
         }
 
         MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(RagUtils.getCollectionName(TEMP_USER_ID,collectionName));
@@ -95,7 +97,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         List<FileVo> fileVos = knowledgeFileService.getFileListByIds(uploadFileConfig.getFileIds());
         if(fileVos==null||fileVos.isEmpty()){
             log.warn("没有找到文件");
-            return "没有找到文件";
+            throw new ResourceConflictException("没有找到文件");
         }
 
         for (FileVo fileVo:fileVos){
@@ -116,16 +118,14 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 //                }
             }
         }
-
-        return "提交成功！";
     }
 
     @Override
     public List<Document> searchSimilar(String query, int topK, String collectionName) {
         Collection collection = milvusVectorStoreUtils.isValidCollectionName(collectionName);
         if(collection==null){
-            log.warn("不存在的知识库:{}",collectionName);
-            return new ArrayList<>();
+            log.warn("不存在:{}",collectionName);
+            return List.of();
         }
         MilvusVectorStore vectorStore = dynamicVectorStoreFactory.apply(RagUtils.getCollectionName(TEMP_USER_ID,collectionName));
         Assert.hasText(query,"查询不能为空");
@@ -140,7 +140,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
-    public ResponseEntity<String> createCollection(CreateCollectionDTO createCollectionDTO) {
+    public void createCollection(CreateCollectionDTO createCollectionDTO) {
         boolean isSystem = createCollectionDTO.getIsSystem();
         String collectionName = createCollectionDTO.getCollectionName();
         String description = createCollectionDTO.getDescription();
@@ -150,18 +150,18 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         UserDTO user = UserHolder.getUser();
         if (user==null){
             log.warn("用户未登录");
-            return ResponseEntity.status(401).body("用户未登录");
+            throw new UnauthorizedException("用户未登录！");
         }
 //        如果语言不支持
         if(language!=null&&!LANGUAGE_LIST.contains(language)){
-            return ResponseEntity.badRequest().body("不支持的语言!");
+            throw new ValidationException("不支持的语言:"+createCollectionDTO.getLanguage());
         }
 
 //        查看是否是系统知识库
         if(isSystem){
 //            查看是否是系统管理员
             if(!user.getId().equals(TEMP_USER_ID)){
-                return ResponseEntity.badRequest().body("权限不足！");
+                throw new PermissionDeniedException("无权限创建系统知识库");
             }
         }
 //        获取当前用户
@@ -172,7 +172,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 .count().intValue();
         if(count>=10){
             log.warn("用户已创建10个知识库，不允许创建新的知识库");
-            return ResponseEntity.status(400).body("用户已创建10个知识库，不允许创建新的知识库");
+            throw new ValidationException("您已达到10个知识库的创建上限");
         }
 //         这里知识库名称全局只允许存在一个，之后可以考虑怎么解决这个问题:解决办法：在知识库名称前面加用户的id
 //        判断是否存在
@@ -182,7 +182,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 .one();
         if(collection!=null){
             log.warn("知识库已存在:{}",collectionName);
-            return ResponseEntity.status(400).body("知识库已存在");
+            throw new ResourceConflictException("知识库已存在:"+collectionName);
         }
 
         Collection.CollectionBuilder collectionBuilder = Collection.builder().collectionName(collectionName).description(description).language(language).userId(user.getId());
@@ -198,12 +198,24 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         boolean save = collectionService.save(collectionBuilder.build());
         if(!save){
             log.warn("创建知识库失败");
-            return  ResponseEntity.status(500).body("创建知识库失败");
+            throw new RuntimeException("创建知识库失败");
         }
 //        这里直接创建知识库 前缀为用户的id
 //        TODO 用户id需要从登录用户中获取
         milvusVectorStoreUtils.createIndexForCollection(RagUtils.getCollectionName(user.getId(),collectionName));
-        return ResponseEntity.ok("创建成功");
+    }
+
+    @Override
+    public List<?> getCollection() {
+        List<Collection> collections = collectionService.lambdaQuery()
+                .eq(Collection::getUserId, TEMP_USER_ID)
+                .or()
+                .eq(Collection::getIsSystem, true)
+                .list();
+        if (collections==null||collections.isEmpty()){
+            return List.of();
+        }
+        return BeanUtil.copyToList(collections, CollectionVO.class);
     }
 
 }

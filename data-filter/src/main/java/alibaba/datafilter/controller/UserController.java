@@ -5,6 +5,7 @@ import alibaba.datafilter.model.dto.LoginDTO;
 import alibaba.datafilter.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,7 +28,8 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<String> login(@Valid @RequestBody LoginDTO loginDTO) {
 //        需要用到redis，去查看缓存里的验证码  已完成
-        return userService.login(loginDTO);
+        String token = userService.login(loginDTO);
+        return ResponseEntity.ok(token);
     }
 
 //    发送邮箱验证码
@@ -43,11 +45,13 @@ public class UserController {
 //    设置密码
     @PutMapping("/setPassword")
     public ResponseEntity<String> setPassword(@RequestParam String email, @RequestParam String password) {
-        return userService.setPassword(email, password);
+        userService.setPassword(email, password);
+        return ResponseEntity.status(HttpStatus.CREATED).body("设置密码成功");
     }
 //    修改密码
     @PutMapping("/changePassword")
     public ResponseEntity<String> changePassword(@RequestParam String email, @RequestParam String oldPassword, @RequestParam String newPassword) {
-        return userService.changePassword(email, oldPassword, newPassword);
+        userService.changePassword(email, oldPassword, newPassword);
+        return ResponseEntity.status(HttpStatus.CREATED).body("修改密码成功");
     }
 }

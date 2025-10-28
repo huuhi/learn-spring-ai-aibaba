@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI聊天界面</title>
+    <link rel="stylesheet" href="chat.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI聊天助手</h1>
+            <button id="newConversationBtn" class="new-conversation-btn">新建对话</button>
+        </header>
+        
+        <div class="settings-panel">
+            <div class="setting-group">
+                <label for="knowledgeBase">知识库:</label>
+                <select id="knowledgeBase">
+                    <option value="">无</option>
+                    <option value="tech_docs">技术文档</option>
+                    <option value="user_manuals">用户手册</option>
+                    <option value="research_papers">研究报告</option>
+                </select>
+            </div>
+            
+            <div class="setting-group">
+                <label for="model">模型:</label>
+                <select id="model">
+                    <option value="qwen-plus">Qwen Plus</option>
+                    <option value="qwen-max">Qwen Max</option>
+                    <option value="qwen-turbo">Qwen Turbo</option>
+                </select>
+            </div>
+            
+            <div class="setting-group">
+                <label for="webSearch">
+                    <input type="checkbox" id="webSearch">
+                    开启联网搜索
+                </label>
+            </div>
+            
+            <div class="setting-group">
+                <label for="thinking">
+                    <input type="checkbox" id="thinking" checked>
+                    显示思考过程
+                </label>
+            </div>
+            
+            <div class="setting-group">
+                <label for="autoRag">
+                    <input type="checkbox" id="autoRag">
+                    自动检索知识库
+                </label>
+            </div>
+        </div>
+        
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="message ai-message">
+                    <div class="message-content">
+                        您好！我是AI助手，请问有什么可以帮助您的吗？
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-input-area">
+                <textarea 
+                    id="messageInput" 
+                    placeholder="输入您的消息..." 
+                    rows="3"></textarea>
+                <button id="sendButton">发送</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="chat.js"></script>
+</body>
+</html>

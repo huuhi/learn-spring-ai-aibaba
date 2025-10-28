@@ -6,7 +6,6 @@ import alibaba.datafilter.model.domain.CollectionFiles;
 import alibaba.datafilter.model.dto.UploadFileConfigDTO;
 import alibaba.datafilter.model.em.FileStatus;
 import alibaba.datafilter.model.vo.FileVo;
-import alibaba.datafilter.service.CollectionFilesService;
 import alibaba.datafilter.utils.CharacterTextSplitter;
 import alibaba.datafilter.utils.RagUtils;
 import com.aliyuncs.exceptions.ClientException;
@@ -40,7 +39,6 @@ import java.util.*;
 @RequiredArgsConstructor
 public class AsyncFileProcessingService {
     private final AliOssUtil aliOssUtil;
-    private final CollectionFilesService collectionFilesService;
     private final RagUtils ragUtils;
     private final CollectionFilesMapper collectionFilesMapper;
     /**

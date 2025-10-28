@@ -1,5 +1,7 @@
 package alibaba.datafilter;
 
+import cn.hutool.captcha.generator.RandomGenerator;
+import cn.hutool.core.util.RandomUtil;
 import com.github.houbb.opencc4j.util.ZhConverterUtil;
 import org.junit.jupiter.api.Test;
 
@@ -24,4 +26,8 @@ public class OpenCC4jTest {
         System.out.println(text);
     }
 
+    @Test
+    public void test2() {
+        System.out.println(RandomUtil.randomString(30));
+    }
 }

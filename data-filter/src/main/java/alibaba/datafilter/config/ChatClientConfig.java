@@ -4,6 +4,7 @@ import com.alibaba.cloud.ai.memory.jdbc.SQLiteChatMemoryRepository;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -17,7 +18,7 @@ import org.springframework.context.annotation.Configuration;
 public class ChatClientConfig {
 
     @Bean
-    ChatClient chatClient(ChatClient.Builder builder, SQLiteChatMemoryRepository sqliteChatMemoryRepository) {
+    ChatClient chatClient(ChatClient.Builder builder, SQLiteChatMemoryRepository sqliteChatMemoryRepository, ToolCallbackProvider tools) {
         int maxMessage = 100;
         MessageWindowChatMemory messageWindowChatMemory = MessageWindowChatMemory.builder()
                 .maxMessages(maxMessage)
@@ -30,6 +31,7 @@ public class ChatClientConfig {
                         MessageChatMemoryAdvisor.builder(messageWindowChatMemory)
                                 .build()
                 )
+                .defaultToolCallbacks(tools)
                 .build();
     }
     @Bean

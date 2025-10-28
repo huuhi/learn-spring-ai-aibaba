@@ -3,17 +3,23 @@ package alibaba.datafilter.service.impl;
 import alibaba.datafilter.common.content.AvatarContent;
 import alibaba.datafilter.common.content.RedisConstant;
 import alibaba.datafilter.common.utils.RedisUtils;
+import alibaba.datafilter.exception.ValidationException;
 import alibaba.datafilter.model.dto.LoginDTO;
+import alibaba.datafilter.model.dto.UserDTO;
 import cn.hutool.captcha.generator.RandomGenerator;
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.RandomUtil;
+import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import alibaba.datafilter.model.domain.User;
 import alibaba.datafilter.service.UserService;
 import alibaba.datafilter.mapper.UserMapper;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Random;
+
+import static alibaba.datafilter.common.content.RedisConstant.USER_DATA_PREFIX;
 
 /**
 * @author windows
@@ -34,46 +40,54 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     @Override
-    public ResponseEntity<String> login(LoginDTO loginDTO) {
+    public String login(LoginDTO loginDTO) {
         String email = loginDTO.getEmail();
         String authCode = loginDTO.getAuthCode();
+        User user;
 //        先判断是密码登录还是验证码登录
         if (loginDTO.getType().equals("password")) {
-            return  loginByPassword(email, loginDTO.getPassword());
+            user= loginByPassword(email, loginDTO.getPassword());
+        }else{
+            user= loginByCode(email, authCode);
         }
-        return loginByCode(email, authCode);
+        UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
+        return generateToken(userDTO);
     }
 
-    private ResponseEntity<String> loginByCode(String email, String authCode) {
+    private User loginByCode(String email, String authCode) {
 //        判断验证码是否存在
         Boolean exists = redisUtils.exists(RedisConstant.EMAIL_CODE_PREFIX + email);
 //        如果存在,判断验证码是否一致
         if (exists && redisUtils.get(RedisConstant.EMAIL_CODE_PREFIX + email).equals(authCode)) {
             //判断邮箱是否已注册
-            if(!isEmailExists(email)){
+            User user = isEmailExists(email);
+            if(user==null){
                 register(email);
             }
+            //查询
+
 //            将验证码删除
             redisUtils.delete(RedisConstant.EMAIL_CODE_PREFIX + email);
-            return  ResponseEntity.ok("登录成功");
+            return user;
         }
-        return  ResponseEntity.badRequest().body("验证码错误或已过期！");
+        throw new ValidationException("验证码错误或已过期!");
     }
 
-    private ResponseEntity<String> loginByPassword(String email, String password) {
-        if(!isEmailExists(email)){
-            return  ResponseEntity.badRequest().body("邮箱未注册！");
+    private User loginByPassword(String email, String password) {
+        if(isEmailExists(email)==null){
+            throw new ValidationException("用户不存在！");
         }
 //        获取密码
-        String dbPassword = query().eq("email", email).one().getPassword();
+        User user = query().eq("email", email).one();
+        String dbPassword =  user.getPassword();
         if(dbPassword==null||dbPassword.isEmpty()){
-            return  ResponseEntity.badRequest().body("用户不存在！");
+            throw new ValidationException("用户不存在！");
         }
 //        判断密码是否正确
-        if (encoder.matches(password,dbPassword)) {
-            return ResponseEntity.ok("登录成功");
+        if (!encoder.matches(password,dbPassword)) {
+            throw new ValidationException("密码错误!");
         }
-        return ResponseEntity.badRequest().body("密码错误！");
+        return user;
     }
 
 
@@ -86,39 +100,43 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     @Override
-    public ResponseEntity<String> setPassword(String email, String password) {
+    public void setPassword(String email, String password) {
 //        TODO 需要判断当前用户是否登录，并且密码为null，否则拒绝
-        if(!isEmailExists(email)){
-            return  ResponseEntity.badRequest().body("邮箱未注册！");
+        if(isEmailExists(email)==null){
+            throw new ValidationException("邮箱未注册！");
         }
         if (query().eq("email", email).one().getPassword()!=null) {
-            return  ResponseEntity.badRequest().body("用户已设置密码！");
+            throw new ValidationException("用户已设置密码！");
         }
         update().set("password", encoder.encode(password)).eq("email", email).update();
-
-        return ResponseEntity.ok("设置密码成功");
     }
 
     @Override
-    public ResponseEntity<String> changePassword(String email, String oldPassword, String newPassword) {
-        if(!isEmailExists(email)){
-            return  ResponseEntity.badRequest().body("邮箱未注册！");
+    public void changePassword(String email, String oldPassword, String newPassword) {
+        if(isEmailExists(email)==null){
+            throw new ValidationException("邮箱未注册！");
         }
         String password = query().eq("email", email).one().getPassword();
         if (password==null) {
-            return  ResponseEntity.badRequest().body("用户未设置密码！");
+            throw new ValidationException("用户未设置密码！");
         }
         if (!encoder.matches(oldPassword,password)) {
-            return  ResponseEntity.badRequest().body("旧密码错误！");
+            throw new ValidationException("旧密码错误！");
         }
         if(oldPassword.equals(newPassword)){
-            return  ResponseEntity.badRequest().body("新密码不能与旧密码相同！");
+            throw new ValidationException("新密码不能与旧密码相同！");
         }
         update().set("password", encoder.encode(newPassword)).eq("email", email).update();
-        return ResponseEntity.ok("修改密码成功");
     }
-    private Boolean isEmailExists(String email) {
-        return query().eq("email", email).count() > 0;
+    private User isEmailExists(String email) {
+        return query().eq("email", email).one();
     }
+//    生成一个随机token
+    private String generateToken(UserDTO userDTO) {
+        String token = RandomUtil.randomString(30);
+        redisUtils.set(USER_DATA_PREFIX+token,JSONUtil.toJsonStr(userDTO),10080L);
+        return token;
+    }
+
 
 }

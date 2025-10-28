@@ -3,7 +3,6 @@ package alibaba.datafilter.service;
 import alibaba.datafilter.model.domain.User;
 import alibaba.datafilter.model.dto.LoginDTO;
 import com.baomidou.mybatisplus.extension.service.IService;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 /**
@@ -14,11 +13,10 @@ import org.springframework.stereotype.Service;
 @Service
 public interface UserService extends IService<User> {
 
+    void setPassword(String email, String password);
 
-    ResponseEntity<String> setPassword(String email, String password);
-
-    ResponseEntity<String> changePassword(String email, String oldPassword, String newPassword);
+    void changePassword(String email, String oldPassword, String newPassword);
 
 
-    ResponseEntity<String> login(LoginDTO loginDTO);
+    String login(LoginDTO loginDTO);
 }

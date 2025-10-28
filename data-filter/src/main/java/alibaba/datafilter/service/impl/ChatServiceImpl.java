@@ -24,14 +24,11 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
-import org.springframework.ai.rag.preretrieval.query.expansion.MultiQueryExpander;
 import org.springframework.ai.rag.preretrieval.query.transformation.RewriteQueryTransformer;
 import org.springframework.ai.rag.preretrieval.query.transformation.TranslationQueryTransformer;
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -107,13 +104,13 @@ public class ChatServiceImpl implements ChatService {
             MilvusVectorStore vectorStore = ragUtils.getVectorStore(RagUtils.getCollectionName(TEMP_USER_ID,collectionName));
 //            翻译，将问题转换为知识库的语言
             TranslationQueryTransformer queryTransformer = TranslationQueryTransformer.builder().targetLanguage(collection.getLanguage()).chatClientBuilder(chatClientBuilder).build();
-//          变体能从不同角度或方面覆盖原始查询的主题，从而增加检索到相关结果的机会
-            MultiQueryExpander queryExpander = MultiQueryExpander.builder().chatClientBuilder(chatClientBuilder).build();
+//          变体能从不同角度或方面覆盖原始查询的主题，从而增加检索到相关结果的机会 error:不推荐开启，会出现键重复错误
+//            MultiQueryExpander queryExpander = MultiQueryExpander.builder().chatClientBuilder(chatClientBuilder).build();
 //            重写用户查询
             RewriteQueryTransformer rewriteQueryTransformer = RewriteQueryTransformer.builder().chatClientBuilder(chatClientBuilder).build();
             RetrievalAugmentationAdvisor retrievalAugmentationAdvisor = RetrievalAugmentationAdvisor.builder()
                     .queryTransformers(List.of(queryTransformer,rewriteQueryTransformer))
-                    .queryExpander(queryExpander)
+//                    .queryExpander(queryExpander)
                     .documentRetriever(VectorStoreDocumentRetriever.builder()
                             .vectorStore(vectorStore)
                             .build())
@@ -121,7 +118,7 @@ public class ChatServiceImpl implements ChatService {
             spec=spec.advisors(retrievalAugmentationAdvisor);
         }
 //       判断用户是否开启了rag检索，如果开启需要先判断知识库是否存在
-        if(collectionName==null&&requestDTO.getAutoRag()){
+        if(collectionName==null && Boolean.TRUE.equals(requestDTO.getAutoRag())){
 //            注册一个工具给AI使用
             spec = spec.tools(ragTool);
             log.info("用户开启了自动检索知识库");
@@ -151,7 +148,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public ResponseEntity<List<?>> developPlan(QuestionDTO question) {
+    public List<ResearchPlanStep> developPlan(QuestionDTO question) {
         boolean isNewConversation = question.getConversationId() == null || question.getConversationId().isEmpty();
         final String conversationId  =isNewConversation ? createConversation(): question.getConversationId();
         ChatClient.CallResponseSpec responseSpec = chatClient.prompt()
@@ -169,10 +166,10 @@ public class ChatServiceImpl implements ChatService {
                 .call();
 
         try {
-            List<ResearchPlanStep> researchPlans = responseSpec.entity(new ParameterizedTypeReference<>() {});
-            return ResponseEntity.ok(researchPlans);
+            return responseSpec.entity(new ParameterizedTypeReference<>() {});
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(List.of("生成方案失败"));
+            log.error("生成研究方案失败：{}",e.getMessage());
+            return List.of();
         }
     }
 

@@ -29,7 +29,9 @@ public class PolicyMakingUtils {
                                     CREATIVE_QUESTIONS,
                                     // 4. 个人交互型 - 需要温度和同理心
                                     PERSONAL_QUESTIONS
-                              最终输出问题类型
+                              请严格按照以下格式返回，只返回字符串(一定要用双引号！)，严格禁止返回JSON或其他格式！：
+                              根据问题，直接返回："KNOWLEDGE_QUESTIONS"、"GUIDANCE_QUESTIONS"、"CREATIVE_QUESTIONS"、"PERSONAL_QUESTIONS"
+                              只能从以上四种类型中选择一种，绝对不能返回其他内容！
                               """)
                 .defaultAdvisors(SimpleLoggerAdvisor.builder().build())
 //                使用qwen-turbo模型
@@ -39,13 +41,12 @@ public class PolicyMakingUtils {
 
 
     public String getPrompt(String question) {
-        return Objects.requireNonNull(chatClient.prompt()
+        QuestionType questionType = Objects.requireNonNull(chatClient.prompt()
                 .user(question)
                 .call()
-                .entity(QuestionType.class)).getValue();
+                .entity(QuestionType.class));
+        return QuestionType.valueOf(questionType.name()).getValue();
 //        TODO 之后可以考虑，只返回枚举，然后在chat实现类中，根据不同的类型，调整温度等参数
-
-
     }
 
 }

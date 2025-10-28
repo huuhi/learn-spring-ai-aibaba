@@ -8,12 +8,15 @@ import alibaba.datafilter.mapper.ConversationMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
-import org.springframework.http.ResponseEntity;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 
 import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
@@ -28,11 +31,15 @@ import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
 public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Conversation>
     implements ConversationService{
     private final ChatClient chatClient;
+    private final MessageWindowChatMemory messageWindowChatMemory;
+    private final ConversationMapper conversationMapper;
 
-    public ConversationServiceImpl(ChatClient.Builder chatClient) {
+    public ConversationServiceImpl(ChatClient.Builder chatClient, MessageWindowChatMemory messageWindowChatMemory, ConversationMapper conversationMapper) {
         this.chatClient = chatClient.defaultAdvisors(new SimpleLoggerAdvisor())
                 .defaultSystem("请根据对话内容生成简洁标题，最多100个字符")
                 .build();
+        this.messageWindowChatMemory = messageWindowChatMemory;
+        this.conversationMapper = conversationMapper;
     }
 
 
@@ -76,7 +83,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     }
 
     @Override
-    public ResponseEntity<List<ConversationVO>> getListByUserId() {
+    public List<ConversationVO> getListByUserId() {
 //        TODO 之后用户id需要在线程中获取
         List<ConversationVO> list = lambdaQuery()
                 .eq(Conversation::getUserId, TEMP_USER_ID)
@@ -87,9 +94,40 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
                         .id(c.getId()).title(c.getTitle()).updateTime(dateToString(c.getUpdatedAt())).build())
                 .toList();
         if (list.isEmpty()) {
-            return ResponseEntity.ok(List.of());
+            return List.of();
         }
-        return ResponseEntity.ok(list);
+        return list;
+    }
+
+    @Override
+    @Transactional
+    public void deleteByIds(String[] conversationIds) {
+        try {
+            conversationMapper.deleteBatchIds(Arrays.asList(conversationIds));
+        } catch (Exception e) {
+            log.error("删除会话失败:{}", e.getMessage());
+        }
+        try {
+            for (String conversationId : conversationIds) {
+                log.info("id长度：{}",conversationId.length());
+                messageWindowChatMemory.clear(conversationId);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("聊天记录删除失败");
+        }
+    }
+
+    @Override
+    public List<Message> getMessageById(String conversationId) {
+//        判断会话是否属于当前用户
+        Conversation one = lambdaQuery()
+                .eq(Conversation::getId, conversationId)
+                .eq(Conversation::getUserId, TEMP_USER_ID)
+                .one();
+        if (one==null){
+            return List.of();
+        }
+        return messageWindowChatMemory.get(conversationId);
     }
 
     private String truncateTitle(String title) {

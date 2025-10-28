@@ -3,13 +3,9 @@ package alibaba.datafilter.controller;
 import alibaba.datafilter.model.vo.ConversationVO;
 import alibaba.datafilter.service.ConversationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -23,18 +19,36 @@ import java.util.List;
 @RequestMapping("/conversation")
 @RequiredArgsConstructor
 public class ConversationController {
-    private final MessageWindowChatMemory messageWindowChatMemory;
     private final ConversationService conversationService;
 
 
     @GetMapping("/get-list")
     public ResponseEntity<List<ConversationVO>> getList() {
-        return conversationService.getListByUserId();
+        List<ConversationVO> list = conversationService.getListByUserId();
+        return ResponseEntity.ok(list);
     }
 
     @GetMapping("/messages")
-    public List<Message> messages(@RequestParam String conversationId) {
-        return messageWindowChatMemory.get(conversationId);
+    public ResponseEntity<List<Message>> messages(@RequestParam String conversationId) {
+        try {
+            List<Message> messages=conversationService.getMessageById(conversationId);
+            return ResponseEntity.ok(messages);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(List.of());
+        }
+    }
+
+    @DeleteMapping("/delete")
+    public ResponseEntity<?> delete(@RequestParam String[] conversationIds) {
+        if(conversationIds==null||conversationIds.length==0){
+            return ResponseEntity.badRequest().body("非法会话id");
+        }
+        try {
+            conversationService.deleteByIds(conversationIds);
+            return ResponseEntity.ok("删除成功");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
 }

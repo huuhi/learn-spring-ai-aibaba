@@ -2,6 +2,7 @@ package alibaba.datafilter.service.impl;
 
 import alibaba.datafilter.common.utils.AliOssUtil;
 import alibaba.datafilter.common.utils.FileTypeUtils;
+import alibaba.datafilter.exception.ResourceNotFoundException;
 import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.model.domain.CollectionFiles;
 import alibaba.datafilter.model.em.FileStatus;
@@ -17,7 +18,6 @@ import alibaba.datafilter.mapper.KnowledgeFileMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -50,7 +50,7 @@ public class KnowledgeFileServiceImpl extends ServiceImpl<KnowledgeFileMapper, K
     @Override
 //    保证原子
     @Transactional
-    public ResponseEntity<?> uploadFile(MultipartFile[] files) {
+    public List<Long> uploadFile(MultipartFile[] files) {
         List<KnowledgeFile> knowledgeFiles =new ArrayList<>();
 
 //      TODO  用户id需要在线程中获取
@@ -99,7 +99,7 @@ public class KnowledgeFileServiceImpl extends ServiceImpl<KnowledgeFileMapper, K
         }
 //        需要判断集合是否为空
         if (knowledgeFiles.isEmpty()) {
-            return ResponseEntity.badRequest().body("请上传文件并且上传正确的文件类型");
+            throw new ResourceNotFoundException("文件未发现!");
         }
         knowledgeFileMapper.saveBatchAutoStatus(knowledgeFiles);
         
@@ -111,13 +111,16 @@ public class KnowledgeFileServiceImpl extends ServiceImpl<KnowledgeFileMapper, K
                 .last("LIMIT " + knowledgeFiles.size())
                 .list();
 //            获取ID
-        return ResponseEntity.ok(savedFiles.stream().map(KnowledgeFile::getId).toList());
+        return savedFiles.stream().map(KnowledgeFile::getId).toList();
     }
 
     @Override
-    public ResponseEntity<List<FileVo>> getFileList() {
+    public List<FileVo> getFileList() {
         List<FileVo> fileList = getFileList(List.of());
-        return ResponseEntity.ok(fileList);
+        if (fileList==null||fileList.isEmpty()) {
+            return List.of();
+        }
+        return fileList;
     }
 
     @Override
@@ -127,7 +130,7 @@ public class KnowledgeFileServiceImpl extends ServiceImpl<KnowledgeFileMapper, K
 
     @Override
     @Transactional
-    public ResponseEntity<String> deleteFiles(Long[] ids) {
+    public void deleteFiles(Long[] ids) {
         List<KnowledgeFile> list = lambdaQuery()
                 .in(KnowledgeFile::getId, List.of(ids))
                 .eq(KnowledgeFile::getUserId, TEMP_USER_ID)
@@ -152,8 +155,7 @@ public class KnowledgeFileServiceImpl extends ServiceImpl<KnowledgeFileMapper, K
             vectorStore.delete("file_id == '" + fileId + "'");
 //            ragUtils.deleteDocumentsByFileId(vectorStore, fileId.toString());
         });
-        return removeBatchByIds(fileIds)?ResponseEntity.ok("删除成功") : ResponseEntity.badRequest().body("删除失败");
-
+        removeBatchByIds(fileIds);
     }
 
     private List<FileVo> getFileList(List<Long> ids) {

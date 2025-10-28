@@ -8,5 +8,6 @@ package alibaba.datafilter.common.content;
  */
 public class RedisConstant {
     public static final String EMAIL_CODE_PREFIX = "email:code:";
+    public static final String USER_DATA_PREFIX = "user:token:";
     public static final Integer TEMP_USER_ID = 960630785;
 }

@@ -1,6 +1,7 @@
 package alibaba.datafilter.controller;
 
 
+import alibaba.datafilter.model.domain.ResearchPlanStep;
 import alibaba.datafilter.model.domain.ResearchQuestionDTO;
 import alibaba.datafilter.model.dto.QuestionDTO;
 import alibaba.datafilter.model.dto.RequestDTO;
@@ -56,7 +57,8 @@ public class ChatController {
     }
     @GetMapping("/develop-plan")
     public ResponseEntity<List<?>> developPlan(@RequestBody QuestionDTO question) {
-        return chatService.developPlan(question);
+        List<ResearchPlanStep> researchPlanSteps = chatService.developPlan(question);
+        return ResponseEntity.ok(researchPlanSteps);
     }
 //    开始研究！
     @PostMapping(value = "/research",produces = "text/event-stream;charset=UTF-8")

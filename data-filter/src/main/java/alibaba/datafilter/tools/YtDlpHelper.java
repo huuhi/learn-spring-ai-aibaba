@@ -31,11 +31,11 @@ public class YtDlpHelper {
      * @return 字幕文件的完整内容（字符串形式）。如果失败或没有找到字幕，则返回 null。
      */
     @Tool(name = "get_subtitles",description = "获取指定视频的字幕")
-    public  String getSubtitles(@ToolParam(description = "有效的视频url,比如:https://www.bilibili.com/video/视频编号") String videoUrl,@ToolParam(description = "保存cookie的浏览器,比如:chrome, firefox, edge") String browser,@ToolParam(description = "字幕语言代码,比如：ai-zh") String subtitleLang) {
+    public  String getSubtitles(@ToolParam(description = "有效的视频url,比如:https://www.bilibili.com/video/视频编号") String videoUrl,@ToolParam(description = "保存cookie的浏览器,比如:chrome, firefox, edge",required = false) String browser,@ToolParam(description = "字幕语言代码,比如：ai-zh") String subtitleLang) {
         List<String> command = new ArrayList<>();
         command.add(YT_DLP_EXECUTABLE_PATH);
         command.add("--cookies-from-browser");
-        command.add(browser);
+        command.add(browser==null?"edge":browser);
         command.add("--write-subs");
         command.add("--sub-lang");
         command.add(subtitleLang);
@@ -112,11 +112,11 @@ public class YtDlpHelper {
      *         如果失败或没有字幕，返回一个空的Map。
      */
     @Tool(name = "get_",description = "获取指定视频的字幕语言代码列表(包括弹幕)")
-    public  Map<String, String> getAvailableSubtitles(@ToolParam(description = "有效的视频url") String videoUrl,@ToolParam(description = "保存cookie的浏览器") String browser) {
+    public  Map<String, String> getAvailableSubtitles(@ToolParam(description = "有效的视频url") String videoUrl,@ToolParam(description = "保存cookie的浏览器" ,required = false) String browser) {
         List<String> command = new ArrayList<>();
         command.add(YT_DLP_EXECUTABLE_PATH);
         command.add("--cookies-from-browser");
-        command.add(browser);
+        command.add(browser==null?"edge":browser);
         command.add("--list-subs");
         command.add(videoUrl);
 

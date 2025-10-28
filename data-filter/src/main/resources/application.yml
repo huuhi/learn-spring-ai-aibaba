@@ -32,6 +32,10 @@ spring:
         embedding-dimension: 1024
         initialize-schema: true
         collection-name: vector_store
+    mcp:
+      client:
+        stdio:
+          servers-configuration: classpath:mcp-servers-config.json
   mail:
     host: smtp.qq.com
     port: 587

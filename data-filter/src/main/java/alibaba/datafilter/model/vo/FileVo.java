@@ -1,10 +1,11 @@
 package alibaba.datafilter.model.vo;
 
 import alibaba.datafilter.model.em.FileStatus;
-import com.baomidou.mybatisplus.annotation.TableId;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Date;
 
 /**
@@ -15,7 +16,7 @@ import java.util.Date;
  */
 @Data
 @AllArgsConstructor
-public class FileVo {
+public class FileVo implements Serializable {
     /**
      * 主键ID
      */
@@ -56,6 +57,7 @@ public class FileVo {
      * 文件上传时间
      */
     private Date uploadedAt;
-
+    @Serial
+    private static final long serialVersionUID = 1L;
 
 }

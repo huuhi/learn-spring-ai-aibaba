@@ -3,7 +3,7 @@ package alibaba.datafilter.service;
 import alibaba.datafilter.model.domain.Conversation;
 import alibaba.datafilter.model.vo.ConversationVO;
 import com.baomidou.mybatisplus.extension.service.IService;
-import org.springframework.http.ResponseEntity;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.scheduling.annotation.Async;
 
 import java.util.List;
@@ -19,6 +19,9 @@ public interface ConversationService extends IService<Conversation> {
     @Async
     void createConversation(String title,String conversationId,Integer userId);
 
-    ResponseEntity<List<ConversationVO>> getListByUserId();
+    List<ConversationVO> getListByUserId();
 
+    void deleteByIds(String[] conversationIds);
+
+    List<Message> getMessageById(String conversationId);
 }
