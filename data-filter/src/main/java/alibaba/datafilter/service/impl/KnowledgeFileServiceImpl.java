@@ -2,7 +2,7 @@ package alibaba.datafilter.service.impl;
 
 import alibaba.datafilter.common.utils.AliOssUtil;
 import alibaba.datafilter.common.utils.FileTypeUtils;
-import alibaba.datafilter.exception.ResourceNotFoundException;
+import alibaba.datafilter.common.exception.ResourceNotFoundException;
 import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.model.domain.CollectionFiles;
 import alibaba.datafilter.model.em.FileStatus;

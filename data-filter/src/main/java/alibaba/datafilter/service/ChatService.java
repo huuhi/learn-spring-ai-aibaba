@@ -2,6 +2,7 @@ package alibaba.datafilter.service;
 
 import alibaba.datafilter.model.domain.ResearchPlanStep;
 import alibaba.datafilter.model.domain.ResearchQuestionDTO;
+import alibaba.datafilter.model.dto.DebateDTO;
 import alibaba.datafilter.model.dto.QuestionDTO;
 import alibaba.datafilter.model.dto.RequestDTO;
 import alibaba.datafilter.model.dto.StreamResponse;
@@ -30,4 +31,5 @@ public interface ChatService {
 
 
     Flux<StreamResponse> research(ResearchQuestionDTO researchQuestionDTO);
+
 }

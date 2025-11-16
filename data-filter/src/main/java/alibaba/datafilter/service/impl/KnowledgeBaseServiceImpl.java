@@ -1,10 +1,10 @@
 package alibaba.datafilter.service.impl;
 
 import alibaba.datafilter.common.concurrent.UserHolder;
-import alibaba.datafilter.exception.PermissionDeniedException;
-import alibaba.datafilter.exception.ResourceConflictException;
-import alibaba.datafilter.exception.UnauthorizedException;
-import alibaba.datafilter.exception.ValidationException;
+import alibaba.datafilter.common.exception.PermissionDeniedException;
+import alibaba.datafilter.common.exception.ResourceConflictException;
+import alibaba.datafilter.common.exception.UnauthorizedException;
+import alibaba.datafilter.common.exception.ValidationException;
 import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.model.domain.CollectionFiles;
 import alibaba.datafilter.model.dto.CreateCollectionDTO;

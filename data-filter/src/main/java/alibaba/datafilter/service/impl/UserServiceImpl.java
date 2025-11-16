@@ -3,7 +3,7 @@ package alibaba.datafilter.service.impl;
 import alibaba.datafilter.common.content.AvatarContent;
 import alibaba.datafilter.common.content.RedisConstant;
 import alibaba.datafilter.common.utils.RedisUtils;
-import alibaba.datafilter.exception.ValidationException;
+import alibaba.datafilter.common.exception.ValidationException;
 import alibaba.datafilter.model.dto.LoginDTO;
 import alibaba.datafilter.model.dto.UserDTO;
 import cn.hutool.captcha.generator.RandomGenerator;

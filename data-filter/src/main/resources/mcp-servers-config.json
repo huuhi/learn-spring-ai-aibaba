@@ -1,6 +1,8 @@
 {
   "mcpServers": {
     "chrome-devtools": {
+
+
       "command": "D:\\develope_2\\nodejs\\npx.cmd",
       "args": [
           "-y",

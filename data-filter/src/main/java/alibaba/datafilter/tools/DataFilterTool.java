@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static alibaba.datafilter.service.impl.ChatServiceImpl.dabateMap;
+
 /**
  * @author 胡志坚
  * @version 1.0
@@ -34,7 +36,6 @@ public class DataFilterTool {
                 .dataFilterService(builder)
                 .compile();
     }
-
     @Tool(name = "data_filter_search", description = "执行数据过滤搜索工作流，根据用户问题进行联网搜索并过滤结果")
     public String dataFilterSearch(String query) {
         try {

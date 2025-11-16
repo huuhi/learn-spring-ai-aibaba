@@ -1,5 +1,6 @@
 package alibaba.datafilter.model.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -13,5 +14,6 @@ import lombok.Data;
 @AllArgsConstructor
 public class QuestionDTO {
     private String conversationId;
+    @NotBlank(message = "问题不能为空")
     private String question;
 }

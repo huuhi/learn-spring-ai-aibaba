@@ -1,6 +1,6 @@
 package alibaba.datafilter.controller;
 
-import alibaba.datafilter.exception.ResourceNotFoundException;
+import alibaba.datafilter.common.exception.ResourceNotFoundException;
 import alibaba.datafilter.model.dto.CreateCollectionDTO;
 import alibaba.datafilter.model.dto.UploadFileConfigDTO;
 import alibaba.datafilter.model.vo.FileVo;

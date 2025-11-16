@@ -4,24 +4,22 @@ package alibaba.datafilter.service.impl;
 import alibaba.datafilter.model.domain.Collection;
 import alibaba.datafilter.model.domain.ResearchPlanStep;
 import alibaba.datafilter.model.domain.ResearchQuestionDTO;
-import alibaba.datafilter.model.dto.QuestionDTO;
-import alibaba.datafilter.model.dto.RequestDTO;
-import alibaba.datafilter.model.dto.StreamResponse;
+import alibaba.datafilter.model.dto.*;
 import alibaba.datafilter.service.ChatService;
 import alibaba.datafilter.service.CollectionService;
-import alibaba.datafilter.service.ConversationService;
 import alibaba.datafilter.tools.DataFilterTool;
 import alibaba.datafilter.tools.RagTool;
 import alibaba.datafilter.tools.ResearchTool;
 import alibaba.datafilter.tools.YtDlpHelper;
+import alibaba.datafilter.utils.FluxUtils;
 import alibaba.datafilter.utils.PolicyMakingUtils;
 import alibaba.datafilter.utils.RagUtils;
 import cn.hutool.core.lang.UUID;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.preretrieval.query.transformation.RewriteQueryTransformer;
@@ -34,7 +32,6 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static alibaba.datafilter.common.content.RedisConstant.TEMP_USER_ID;
 import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
@@ -53,17 +50,19 @@ public class ChatServiceImpl implements ChatService {
     private final DataFilterTool dataFilterTool;
     private final ResearchTool researchTool;
     private final RagTool ragTool;
-    private final ConversationService conversationService;
     private final YtDlpHelper YtDleTool;
     private final  ChatClient chatClient;
     private final ChatClient.Builder chatClientBuilder;
     private final RagUtils ragUtils;
     private final List<String> models=List.of("qwen-max","qwen-plus-latest","qwen3-max-2025-09-23","qwen3-max-preview",
             "qwen-plus-2025-07-28","qwen-turbo","Moonshot-Kimi-K2-Instruct","deepseek-r1","deepseek-v3");
+    private final FluxUtils fluxUtils;
+    public static final Map<String,Boolean> dabateMap=Map.of();
 
 
-//    垃圾接口，直接报废！
+    //    垃圾接口，直接报废！
     public String createConversation() {
+//        创建新的会话，应该先判断用户是否登录，如果登录才可以创建！
         return UUID.fastUUID().toString();
     }
 
@@ -124,7 +123,7 @@ public class ChatServiceImpl implements ChatService {
             log.info("用户开启了自动检索知识库");
         }
         Flux<ChatResponse> responseFlux = spec.stream().chatResponse();
-        return getStreamResponseFlux(responseFlux,question,conversationId,isNewConversation);
+        return fluxUtils.getStreamResponseFlux(responseFlux,question,conversationId,isNewConversation);
     }
 
     @Override
@@ -144,7 +143,7 @@ public class ChatServiceImpl implements ChatService {
                 .tools(dataFilterTool)
                 .stream()
                 .chatResponse();
-        return getStreamResponseFlux(chatResponseFlux,query , isConversationId, isNewConversation);
+        return fluxUtils.getStreamResponseFlux(chatResponseFlux,query , isConversationId, isNewConversation);
     }
 
     @Override
@@ -195,55 +194,20 @@ public class ChatServiceImpl implements ChatService {
                 .stream()
                 .chatResponse();
 //        researchQuestionDTO.getResearchPlanSteps().
-        return getStreamResponseFlux(chatResponseFlux,researchQuestionDTO.getQuestion(), conversationId, isNewConversation);
+        return fluxUtils.getStreamResponseFlux(chatResponseFlux,researchQuestionDTO.getQuestion(), conversationId, isNewConversation);
 
     }
 
-    @NotNull
-    private Flux<StreamResponse> getStreamResponseFlux(Flux<ChatResponse> chatResponseFlux,String question, String conversationId, boolean isNewConversation) {
-//        首先
-        StringBuilder answer=new StringBuilder();
-
-        return chatResponseFlux.flatMap(chatResponse->{
-            Flux<StreamResponse> eventFlux = Flux.empty();
-            if(!chatResponse.getResults().isEmpty()){
-                Map<String, Object> metadata = chatResponse.getResults().get(0).getOutput().getMetadata();
-                Flux<StreamResponse> updatedEventFlux = eventFlux;
-                if(metadata.containsKey("reasoningContent")){
-                    Object reasoning = metadata.get("reasoningContent");
-                    if(reasoning != null && !reasoning.toString().isEmpty()){
-                        updatedEventFlux = updatedEventFlux.concatWith(Flux.just(new StreamResponse("THINKING", reasoning)));
-                    }
-                }
-                String text = chatResponse.getResult().getOutput().getText();
-                if (text != null && !text.isEmpty()){
-                    updatedEventFlux = updatedEventFlux.concatWith(Flux.just(new StreamResponse("CONTENT", text)));
-                    answer.append(text);
-                }
-                return updatedEventFlux;
-            }
-            return eventFlux;
-        }).materialize()
-                .flatMap(signal->{
-                    if (signal.isOnNext()){
-                        return Flux.just(Objects.requireNonNull(signal.get()));
-                    }else if(signal.isOnComplete()&& isNewConversation && !answer.isEmpty()){
-                        Flux<StreamResponse> endEvents = Flux.just(
-                                new StreamResponse("END", "流式传输完成")
-                        );
-                        String title = conversationService.createTitle(question, answer.toString());
-                        conversationService.createConversation(title,conversationId,TEMP_USER_ID);
-                        return Flux.concat(
-                                Flux.just(new StreamResponse("TITLE", title)),
-                                Flux.just(new StreamResponse("CONVERSATION_ID", conversationId)),
-                                endEvents
-                        );
-
-                    }else if(signal.isOnComplete()){
-                        return Flux.just(new StreamResponse("END", "流式传输完成"));
-                    }
-                    return Flux.empty();
-                });
+    /**
+     * 判断是不是新会话
+     * @param conversationId 会话id
+     * @return 如果是会话id为null或空返回新的会话id
+     */
+    private String isNewConversationId(String conversationId) {
+        if (conversationId == null || conversationId.isEmpty()) {
+            return createConversation();
+        }
+        return conversationId;
     }
 
 }

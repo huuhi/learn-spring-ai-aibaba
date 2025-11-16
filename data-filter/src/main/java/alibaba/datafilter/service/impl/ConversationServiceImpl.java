@@ -32,14 +32,12 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     implements ConversationService{
     private final ChatClient chatClient;
     private final MessageWindowChatMemory messageWindowChatMemory;
-    private final ConversationMapper conversationMapper;
 
-    public ConversationServiceImpl(ChatClient.Builder chatClient, MessageWindowChatMemory messageWindowChatMemory, ConversationMapper conversationMapper) {
+    public ConversationServiceImpl(ChatClient.Builder chatClient, MessageWindowChatMemory messageWindowChatMemory) {
         this.chatClient = chatClient.defaultAdvisors(new SimpleLoggerAdvisor())
                 .defaultSystem("请根据对话内容生成简洁标题，最多100个字符")
                 .build();
         this.messageWindowChatMemory = messageWindowChatMemory;
-        this.conversationMapper = conversationMapper;
     }
 
 
@@ -103,7 +101,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     @Transactional
     public void deleteByIds(String[] conversationIds) {
         try {
-            conversationMapper.deleteBatchIds(Arrays.asList(conversationIds));
+            removeBatchByIds(Arrays.asList(conversationIds));
         } catch (Exception e) {
             log.error("删除会话失败:{}", e.getMessage());
         }

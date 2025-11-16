@@ -1,4 +1,4 @@
-package alibaba.datafilter.exception;
+package alibaba.datafilter.common.exception;
 
 /**
  * @author 胡志坚

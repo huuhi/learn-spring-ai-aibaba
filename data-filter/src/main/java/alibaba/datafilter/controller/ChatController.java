@@ -7,11 +7,8 @@ import alibaba.datafilter.model.dto.QuestionDTO;
 import alibaba.datafilter.model.dto.RequestDTO;
 import alibaba.datafilter.model.dto.StreamResponse;
 import alibaba.datafilter.service.ChatService;
-import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.chat.messages.Message;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -30,7 +27,6 @@ import java.util.List;
 @RequestMapping("/chat")
 @RequiredArgsConstructor
 public class ChatController {
-    private final MessageWindowChatMemory messageWindowChatMemory;
     private final ChatService chatService;
 
 //    垃圾接口
@@ -46,23 +42,19 @@ public class ChatController {
 //    public ResponseEntity<String> createConversation() {
 //        return chatService.createConversation();
 //    }
-//    获取聊天记录
-    @GetMapping("/messages")
-    public List<Message> messages(@RequestParam @NotBlank String conversationId) {
-        return messageWindowChatMemory.get(conversationId);
-    }
+//    获取聊天记录  ->移到会话控制器 中
     @PostMapping(value="/data-filter",produces = "text/event-stream;charset=UTF-8")
-    public ResponseEntity<Flux<StreamResponse>> dataFilter(@RequestBody QuestionDTO questionDTO) {
+    public ResponseEntity<Flux<StreamResponse>> dataFilter(@RequestBody @Valid QuestionDTO questionDTO) {
         return ResponseEntity.ok(chatService.dataFilterSearch(questionDTO.getQuestion(), questionDTO.getConversationId()));
     }
     @GetMapping("/develop-plan")
-    public ResponseEntity<List<?>> developPlan(@RequestBody QuestionDTO question) {
+    public ResponseEntity<List<ResearchPlanStep>> developPlan(@RequestBody @Valid QuestionDTO question) {
         List<ResearchPlanStep> researchPlanSteps = chatService.developPlan(question);
         return ResponseEntity.ok(researchPlanSteps);
     }
 //    开始研究！
     @PostMapping(value = "/research",produces = "text/event-stream;charset=UTF-8")
-    public ResponseEntity<Flux<StreamResponse>> research(@RequestBody ResearchQuestionDTO researchQuestionDTO) {
+    public ResponseEntity<Flux<StreamResponse>> research(@RequestBody @Valid ResearchQuestionDTO researchQuestionDTO) {
         return ResponseEntity.ok(chatService.research(researchQuestionDTO));
     }
 }
