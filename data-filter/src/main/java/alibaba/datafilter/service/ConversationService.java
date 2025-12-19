@@ -2,7 +2,9 @@ package alibaba.datafilter.service;
 
 import alibaba.datafilter.model.domain.Conversation;
 import alibaba.datafilter.model.vo.ConversationVO;
+import alibaba.datafilter.model.vo.DebateMessageVO;
 import com.baomidou.mybatisplus.extension.service.IService;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.scheduling.annotation.Async;
 
@@ -24,4 +26,6 @@ public interface ConversationService extends IService<Conversation> {
     void deleteByIds(String[] conversationIds);
 
     List<Message> getMessageById(String conversationId);
+
+    List<DebateMessageVO> getDebateMessages(@NotBlank(message = "会话id不能为空") String conversationId);
 }

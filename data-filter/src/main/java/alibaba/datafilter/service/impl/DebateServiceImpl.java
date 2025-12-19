@@ -105,6 +105,10 @@ public class DebateServiceImpl implements DebateService {
     @Override
     public void judgeSpeaks(String conversationId, String message) {
         Message system= SystemMessage.builder().text(message).build();
+//        如果会话不存在，则
+//        List<Message> messages = messageWindowChatMemory.get(conversationId);
+//        if (messages.isEmpty()) return;
+//        直接添加到记忆中
         messageWindowChatMemory.add(conversationId, List.of(system));
     }
 }

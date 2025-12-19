@@ -1,7 +1,9 @@
 package alibaba.datafilter.controller;
 
 import alibaba.datafilter.model.vo.ConversationVO;
+import alibaba.datafilter.model.vo.DebateMessageVO;
 import alibaba.datafilter.service.ConversationService;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.http.ResponseEntity;
@@ -49,6 +51,13 @@ public class ConversationController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+//    获取辩论会话消息
+    @GetMapping("get-debate-messages")
+    public ResponseEntity<List<DebateMessageVO>> getDebateMessages(@RequestParam @NotBlank(message = "会话id不能为空") String conversationId){
+        List<DebateMessageVO> messages=conversationService.getDebateMessages(conversationId);
+        return ResponseEntity.ok(messages);
     }
 
 }

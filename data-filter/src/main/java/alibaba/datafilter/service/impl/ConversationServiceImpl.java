@@ -1,6 +1,9 @@
 package alibaba.datafilter.service.impl;
 
+import alibaba.datafilter.common.exception.ResourceNotFoundException;
+import alibaba.datafilter.model.em.DebateRoles;
 import alibaba.datafilter.model.vo.ConversationVO;
+import alibaba.datafilter.model.vo.DebateMessageVO;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import alibaba.datafilter.model.domain.Conversation;
 import alibaba.datafilter.service.ConversationService;
@@ -10,6 +13,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -126,6 +130,29 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
             return List.of();
         }
         return messageWindowChatMemory.get(conversationId);
+    }
+
+    @Override
+    public List<DebateMessageVO> getDebateMessages(String conversationId) {
+//        直接获取聊天记录
+        List<Message> messages = messageWindowChatMemory.get(conversationId);
+        if (messages.isEmpty()){
+            throw new ResourceNotFoundException("会话id不存在！");
+        }
+
+        return messages.stream().map(message->{
+            MessageType messageType = message.getMessageType();
+            String value = messageType.getValue();
+            DebateRoles role;
+            if (value.equals("user")){
+                role=DebateRoles.DEBATER_PRO;
+            }else if (value.equals("assistant")){
+                role=DebateRoles.DEBATER_OPP;
+            }else{
+                role=DebateRoles.DEBATER_JUDGE;
+            }
+            return DebateMessageVO.builder().content(message.getText()).role(role).build();
+        }).toList();
     }
 
     private String truncateTitle(String title) {

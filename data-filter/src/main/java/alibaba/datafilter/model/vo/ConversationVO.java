@@ -1,5 +1,4 @@
 package alibaba.datafilter.model.vo;
-import com.baomidou.mybatisplus.annotation.TableId;
 import lombok.Builder;
 import lombok.Data;
 

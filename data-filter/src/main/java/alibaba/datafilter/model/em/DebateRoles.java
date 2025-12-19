@@ -12,7 +12,9 @@ public enum DebateRoles {
 //  正方 proposition
     DEBATER_PRO("DEBATER_PRO"),
 //  反方 opposition
-    DEBATER_OPP("DEBATER_OPP");
+    DEBATER_OPP("DEBATER_OPP"),
+//    裁判发言
+    DEBATER_JUDGE("DEBATER_JUDGE");
     @Getter
     private final String value;
     DebateRoles(String value) {

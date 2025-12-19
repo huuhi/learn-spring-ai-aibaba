@@ -34,8 +34,9 @@ public class DebateController {
         return  ResponseEntity.ok(debateService.debate(debateDTO));
     }
 
+//    需要基于选择的模式，事已至此，先建表吧
     @PostMapping("/judge")
-    public ResponseEntity<String> judgeSpeaks(@RequestParam String conversationId,@RequestParam String message){
+    public ResponseEntity<String> judgeSpeaks(@RequestParam @NotBlank(message ="会话id不能为空！") String conversationId,@RequestParam @NotBlank(message = "消息不能为空") String message){
         debateService.judgeSpeaks(conversationId,message);
         return ResponseEntity.ok("发送成功！");
     }
